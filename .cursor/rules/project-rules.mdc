@@ -1,0 +1,119 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+## Project Overview
+
+*   **Type:** Web Application
+*   **Description:** An interactive speech assistance platform designed to help children (ages 8-13) with stuttering and other speech impediments improve their speech through engaging exercises.
+*   **Primary Goal:** Assist children with speech challenges via interactive, real-time exercises that include guided speech drills, pronunciation feedback, and gamified learning.
+
+## Project Structure
+
+### Framework-Specific Routing
+
+*   **Directory Rules:**
+
+    *   **Next.js 14 (App Router):** Use the `app/` directory with nested route folders following the `app/[route]/page.tsx` convention.
+    *   Example 1: "Next.js 14 (App Router)" → `app/[route]/page.tsx` conventions
+    *   Example 2: "Next.js (Pages Router)" → `pages/[route].tsx` pattern *(Not applicable in this project)*
+    *   Example 3: "React Router 6" → `src/routes/` with `createBrowserRouter` *(Not applicable in this project)*
+
+### Core Directories
+
+*   **Versioned Structure:**
+
+    *   **app/api:** Implements Next.js 14 API routes with Route Handlers (e.g., speech processing, webhooks)
+    *   **app:** Contains core layouts and pages such as `page.tsx` for the home page, `globals.css`, etc.
+    *   **components:** Houses UI components including providers (for Clerk and TanStack) and design system components using Shadcn UI.
+    *   **hooks:** Contains custom hooks (e.g., mobile detection, toast notifications).
+    *   **lib / utils / types:** Dedicated for utility functions, common helpers, and TypeScript types for database interactions.
+
+### Key Files
+
+*   **Stack-Versioned Patterns:**
+
+    *   `app/layout.tsx`: Implements the Next.js 14 root layout following App Router conventions.
+    *   `app/page.tsx`: The landing page that initializes the presentation of key features.
+    *   `app/api/webhooks/route.ts`: API endpoint for handling webhook events (e.g., from Supabase, Clerk, or external AI services).
+    *   Additional configuration files such as `tailwind.config.ts` for Tailwind CSS and `middleware.ts` for request interception.
+
+## Tech Stack Rules
+
+*   **Version Enforcement:**
+
+    *   **next@14:** Enforce the use of the App Router residing in the `app/` directory, and disallow legacy patterns such as `getInitialProps` or usage of `pages/` routing.
+    *   **Tailwind CSS:** Ensure configuration in `tailwind.config.ts` is aligned with the project design system.
+    *   **Typescript:** Strict type-checking and use of TS interfaces for robust and maintainable code.
+    *   **Shadcn UI:** Follow component guidelines for consistency and reusability in UI design.
+    *   **Supabase & Clerk:** Utilize their respective latest SDKs for authentication, data management, and secure cloud storage compliant with GDPR/COPPA.
+
+## PRD Compliance
+
+*   **Non-Negotiable:**
+
+    *   "The application must deliver real-time feedback with minimal latency, ensure clear Australian accent for TTS, and strictly adhere to data security protocols (GDPR, COPPA) while using regular user accounts only." This constraint must be integrated into both frontend and backend implementations.
+
+## App Flow Integration
+
+*   **Stack-Aligned Flow:**
+
+    *   Example: For the authentication flow in Next.js 14, implement the login page in `app/auth/login/page.tsx` using Clerk Auth and server actions to manage session data. *(Extend this flow to integrate real-time speech feedback routes and interactive game navigation.)*
+
+## Best Practices
+
+*   **Next.js**
+
+    *   Use the App Router exclusively to manage routes and layouts to ensure clean separation of concerns.
+    *   Optimize server components for better performance and faster TTFB (Time To First Byte).
+    *   Implement code-splitting and lazy-loading where possible.
+
+*   **Tailwind CSS**
+
+    *   Maintain a consistent design system with custom themes set in `tailwind.config.ts`.
+    *   Use utility-first classes to reduce CSS bloat.
+    *   Purge unused CSS in production builds.
+
+*   **Typescript**
+
+    *   Enable strict mode in the TS configuration for improved code correctness.
+    *   Define clear types/interfaces for all components and API responses.
+    *   Use modern TS features to enhance code readability and maintainability.
+
+*   **Shadcn UI**
+
+    *   Reuse component libraries for a consistent UI experience across the application.
+    *   Follow the design system guidelines for spacing, typography, and colors.
+    *   Document custom UI component implementations for future scalability.
+
+*   **Supabase**
+
+    *   Leverage Supabase’s real-time capabilities for instant data synchronization across components.
+    *   Ensure database queries are optimized and secured with proper role policies.
+    *   Manage API keys and environment variables securely.
+
+*   **Clerk Auth**
+
+    *   Follow best practices for secure authentication flows, including proper session management.
+    *   Ensure minimal user friction during sign-up and sign-in processes.
+    *   Regularly update dependencies and monitor for potential security vulnerabilities.
+
+*   **Google Cloud Text-to-Speech & Speech-to-Text**
+
+    *   Optimize TTS configurations to ensure clarity and low latency, specially tuned for an Australian accent.
+    *   Ensure robust error handling and fallbacks for ASR integrations.
+    *   Monitor API usage to balance cost and performance.
+
+*   **OpenAI (for future enhancements)**
+
+    *   Isolate integration logic to specific modules within `utils/ai` to ease future upgrades.
+    *   Use environment configuration to toggle experimental features.
+    *   Keep models updated and test extensively before deployment.
+
+## Rules
+
+*   Derive folder/file patterns directly from the techStackDoc versions as outlined above.
+*   If using Next.js 14 App Router, enforce the `app/` directory with nested route folders; do not mix with legacy patterns like `pages/` routing.
+*   Mirror this logic for other frameworks if they are integrated later (e.g., React Router, SvelteKit).
+*   Never mix version patterns (for example, avoid placing `pages/` in an App Router project).
