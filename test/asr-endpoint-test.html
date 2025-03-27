@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech-to-Text (ASR) API Endpoint Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2563eb;
+            margin-bottom: 20px;
+        }
+        .container {
+            background-color: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        select, input, button {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border: 1px solid #cbd5e1;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            border: none;
+        }
+        button:hover {
+            background-color: #1e40af;
+        }
+        button:disabled {
+            background-color: #94a3b8;
+            cursor: not-allowed;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .controls button {
+            flex: 1;
+        }
+        .recording-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            color: #dc2626;
+            font-weight: 600;
+        }
+        .recording-indicator.hidden {
+            display: none;
+        }
+        .pulse {
+            width: 15px;
+            height: 15px;
+            background-color: #dc2626;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.7;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.8);
+                opacity: 0.7;
+            }
+        }
+        .timer {
+            margin-left: 10px;
+            font-family: monospace;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .transcription {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #2563eb;
+            margin-bottom: 15px;
+        }
+        .phonetic-analysis {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #047857;
+        }
+        .word-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .word {
+            background-color: #e2e8f0;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+        .correct {
+            background-color: #dcfce7;
+            border: 1px solid #10b981;
+        }
+        .incorrect {
+            background-color: #fee2e2;
+            border: 1px solid #ef4444;
+        }
+        .suggestion {
+            background-color: #fff7ed;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #f59e0b;
+            margin-top: 10px;
+        }
+        pre {
+            background-color: #f8fafc;
+            padding: 10px;
+            border-radius: 5px;
+            overflow: auto;
+            font-size: 14px;
+        }
+        .log-container {
+            margin-top: 20px;
+            background-color: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .audio-player {
+            width: 100%;
+            margin: 15px 0;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #475569;
+        }
+        .accuracy-meter {
+            width: 100%;
+            height: 20px;
+            background-color: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .accuracy-bar {
+            height: 100%;
+            background-color: #10b981;
+            transition: width 1s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <h1>Speech-to-Text (ASR) API Endpoint Test</h1>
+    
+    <div class="container">
+        <div class="section">
+            <div class="section-title">Test Configuration</div>
+            <label for="targetSound">Target Sound Focus:</label>
+            <select id="targetSound">
+                <option value="r">R Sound</option>
+                <option value="s">S Sound</option>
+                <option value="l">L Sound</option>
+                <option value="th">TH Sound</option>
+                <option value="">No Specific Focus</option>
+            </select>
+            
+            <label for="testPhrase">Test Phrase (optional):</label>
+            <input type="text" id="testPhrase" placeholder="Enter a phrase to practice or leave empty to use a generated phrase">
+        </div>
+        
+        <div class="recording-indicator hidden">
+            <div class="pulse"></div>
+            <span>Recording in progress</span>
+            <span class="timer">00:00</span>
+        </div>
+        
+        <div class="controls">
+            <button id="startRecording">Start Recording</button>
+            <button id="stopRecording" disabled>Stop Recording</button>
+        </div>
+        
+        <div id="audioPlayback" class="section hidden">
+            <div class="section-title">Your Recording</div>
+            <audio id="recordedAudio" controls class="audio-player"></audio>
+            <button id="sendRecording" disabled>Send to ASR API</button>
+        </div>
+    </div>
+    
+    <div id="results" class="container results hidden">
+        <h2>Analysis Results</h2>
+        
+        <div class="section">
+            <div class="section-title">Transcription</div>
+            <div id="transcription" class="transcription">
+                Waiting for transcription...
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Accuracy Score</div>
+            <div class="accuracy-meter">
+                <div id="accuracyBar" class="accuracy-bar" style="width: 0%"></div>
+            </div>
+            <div id="accuracyText" style="text-align: center;">0%</div>
+        </div>
+        
+        <div class="section">
+            <div class="section-title">Phonetic Analysis</div>
+            <div id="phoneticAnalysis" class="phonetic-analysis">
+                Waiting for analysis...
+            </div>
+            
+            <div class="section-title" style="margin-top: 15px;">Word Breakdown</div>
+            <div id="wordList" class="word-list">
+                <!-- Words will be added here -->
+            </div>
+            
+            <div id="suggestion" class="suggestion hidden">
+                <div class="section-title">Improvement Suggestion</div>
+                <div id="suggestionText"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>Request/Response Log</h2>
+        <div id="log" class="log-container">
+            <!-- Log entries will be added here -->
+        </div>
+    </div>
+    
+    <script>
+        // DOM Elements
+        const startRecordingBtn = document.getElementById('startRecording');
+        const stopRecordingBtn = document.getElementById('stopRecording');
+        const sendRecordingBtn = document.getElementById('sendRecording');
+        const recordingIndicator = document.querySelector('.recording-indicator');
+        const timerElement = document.querySelector('.timer');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const recordedAudio = document.getElementById('recordedAudio');
+        const resultsContainer = document.getElementById('results');
+        const transcriptionElement = document.getElementById('transcription');
+        const phoneticAnalysisElement = document.getElementById('phoneticAnalysis');
+        const wordListElement = document.getElementById('wordList');
+        const suggestionElement = document.getElementById('suggestion');
+        const suggestionTextElement = document.getElementById('suggestionText');
+        const logElement = document.getElementById('log');
+        const accuracyBarElement = document.getElementById('accuracyBar');
+        const accuracyTextElement = document.getElementById('accuracyText');
+        
+        // Variables
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordingTime = 0;
+        let timerInterval;
+        let audioBlob;
+        let audioUrl;
+        
+        // Functions
+        function logMessage(message, isError = false) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            if (isError) {
+                logEntry.style.color = '#ef4444';
+            }
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateTimer() {
+            recordingTime++;
+            const minutes = Math.floor(recordingTime / 60).toString().padStart(2, '0');
+            const seconds = (recordingTime % 60).toString().padStart(2, '0');
+            timerElement.textContent = `${minutes}:${seconds}`;
+        }
+        
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    logMessage('Microphone access granted');
+                    mediaRecorder = new MediaRecorder(stream);
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        audioUrl = URL.createObjectURL(audioBlob);
+                        recordedAudio.src = audioUrl;
+                        
+                        audioPlayback.classList.remove('hidden');
+                        sendRecordingBtn.disabled = false;
+                        
+                        // Reset for next recording
+                        clearInterval(timerInterval);
+                        recordingIndicator.classList.add('hidden');
+                        
+                        logMessage(`Recording stopped. Audio size: ${Math.round(audioBlob.size / 1024)} KB`);
+                    };
+                    
+                    // Start recording
+                    audioChunks = [];
+                    mediaRecorder.start();
+                    
+                    // UI updates
+                    startRecordingBtn.disabled = true;
+                    stopRecordingBtn.disabled = false;
+                    recordingIndicator.classList.remove('hidden');
+                    
+                    // Start timer
+                    recordingTime = 0;
+                    timerElement.textContent = '00:00';
+                    timerInterval = setInterval(updateTimer, 1000);
+                    
+                    logMessage('Recording started');
+                })
+                .catch(error => {
+                    logMessage(`Error accessing microphone: ${error.message}`, true);
+                });
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                
+                startRecordingBtn.disabled = false;
+                stopRecordingBtn.disabled = true;
+            }
+        }
+        
+        function sendToASR() {
+            if (!audioBlob) {
+                logMessage('No audio recording available to send', true);
+                return;
+            }
+            
+            // Get configuration
+            const targetSound = document.getElementById('targetSound').value;
+            const testPhrase = document.getElementById('testPhrase').value.trim();
+            
+            // Prepare form data
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.wav');
+            
+            if (targetSound) {
+                formData.append('targetSound', targetSound);
+            }
+            
+            if (testPhrase) {
+                formData.append('targetPhrase', testPhrase);
+            }
+            
+            // Send the request
+            logMessage(`Sending audio to ASR API with target sound: ${targetSound || 'none'}`);
+            sendRecordingBtn.disabled = true;
+            sendRecordingBtn.textContent = 'Processing...';
+            
+            fetch('/api/speech/asr', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                logMessage(`Received response with status: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                logMessage('ASR processing completed successfully');
+                displayResults(data);
+                
+                // Log the full response for debugging
+                logMessage(`Full response: ${JSON.stringify(data, null, 2)}`);
+            })
+            .catch(error => {
+                logMessage(`Error during ASR processing: ${error.message}`, true);
+            })
+            .finally(() => {
+                sendRecordingBtn.disabled = false;
+                sendRecordingBtn.textContent = 'Send to ASR API';
+            });
+        }
+        
+        function displayResults(data) {
+            // Show results container
+            resultsContainer.classList.remove('hidden');
+            
+            // Display transcription
+            transcriptionElement.textContent = data.transcription || 'No transcription available';
+            
+            // Display accuracy
+            const accuracy = data.accuracy || 0;
+            accuracyBarElement.style.width = `${accuracy}%`;
+            accuracyTextElement.textContent = `${accuracy}%`;
+            
+            // Change color based on accuracy
+            if (accuracy < 50) {
+                accuracyBarElement.style.backgroundColor = '#ef4444'; // Red
+            } else if (accuracy < 80) {
+                accuracyBarElement.style.backgroundColor = '#f59e0b'; // Amber
+            } else {
+                accuracyBarElement.style.backgroundColor = '#10b981'; // Green
+            }
+            
+            // Display phonetic analysis
+            if (data.phoneticAnalysis) {
+                phoneticAnalysisElement.textContent = data.phoneticAnalysis;
+            } else {
+                phoneticAnalysisElement.textContent = 'No phonetic analysis available';
+            }
+            
+            // Display word breakdown
+            wordListElement.innerHTML = '';
+            if (data.wordAnalysis && data.wordAnalysis.length > 0) {
+                data.wordAnalysis.forEach(word => {
+                    const wordElement = document.createElement('div');
+                    wordElement.textContent = word.word;
+                    wordElement.className = word.correct ? 'word correct' : 'word incorrect';
+                    
+                    if (!word.correct && word.suggestion) {
+                        wordElement.title = `Try: ${word.suggestion}`;
+                    }
+                    
+                    wordListElement.appendChild(wordElement);
+                });
+            } else {
+                wordListElement.textContent = 'No word analysis available';
+            }
+            
+            // Display suggestion
+            if (data.improvementSuggestion) {
+                suggestionTextElement.textContent = data.improvementSuggestion;
+                suggestionElement.classList.remove('hidden');
+            } else {
+                suggestionElement.classList.add('hidden');
+            }
+        }
+        
+        // Event Listeners
+        startRecordingBtn.addEventListener('click', startRecording);
+        stopRecordingBtn.addEventListener('click', stopRecording);
+        sendRecordingBtn.addEventListener('click', sendToASR);
+        
+        // Initial log
+        logMessage('ASR test page loaded. Ready to record audio.');
+    </script>
+</body>
+</html> 
