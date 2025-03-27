@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "ms-vscode.vscode-typescript-next",
+    "cursor.cursor",
+    "formulahendry.auto-rename-tag",
+    "streetsidesoftware.code-spell-checker",
+    "mikestead.dotenv",
+    "ms-vscode.vscode-typescript-tslint-plugin",
+    "eamodio.gitlens"
+  ]
+} 

@@ -1,0 +1,19 @@
+<svg width="220" height="100" viewBox="0 0 220 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Sound wave symbol -->
+  <circle cx="50" cy="50" r="40" fill="#3B82F6" opacity="0.9" />
+  <path d="M35 50C35 54.1421 38.3579 57.5 42.5 57.5C46.6421 57.5 50 54.1421 50 50C50 45.8579 46.6421 42.5 42.5 42.5C38.3579 42.5 35 45.8579 35 50Z" fill="white" />
+  <path d="M28 37.5C28 38.8807 29.1193 40 30.5 40C31.8807 40 33 38.8807 33 37.5C33 36.1193 31.8807 35 30.5 35C29.1193 35 28 36.1193 28 37.5Z" fill="white" />
+  <path d="M67 37.5C67 38.8807 68.1193 40 69.5 40C70.8807 40 72 38.8807 72 37.5C72 36.1193 70.8807 35 69.5 35C68.1193 35 67 36.1193 67 37.5Z" fill="white" />
+  <path d="M28 62.5C28 63.8807 29.1193 65 30.5 65C31.8807 65 33 63.8807 33 62.5C33 61.1193 31.8807 60 30.5 60C29.1193 60 28 61.1193 28 62.5Z" fill="white" />
+  <path d="M67 62.5C67 63.8807 68.1193 65 69.5 65C70.8807 65 72 63.8807 72 62.5C72 61.1193 70.8807 60 69.5 60C68.1193 60 67 61.1193 67 62.5Z" fill="white" />
+  
+  <!-- Sound waves -->
+  <path d="M50 28C50 28 60 35 60 50C60 65 50 72 50 72" stroke="white" stroke-width="4" stroke-linecap="round" />
+  <path d="M50 38C50 38 55 42 55 50C55 58 50 62 50 62" stroke="white" stroke-width="4" stroke-linecap="round" />
+  <path d="M50 62C50 62 45 58 45 50C45 42 50 38 50 38" stroke="white" stroke-width="4" stroke-linecap="round" />
+  <path d="M50 72C50 72 40 65 40 50C40 35 50 28 50 28" stroke="white" stroke-width="4" stroke-linecap="round" />
+  
+  <!-- Text -->
+  <text x="110" y="45" font-family="Arial" font-weight="bold" font-size="24" fill="#3B82F6">Speech</text>
+  <text x="110" y="70" font-family="Arial" font-weight="bold" font-size="24" fill="#3B82F6">Buddy</text>
+</svg> 
