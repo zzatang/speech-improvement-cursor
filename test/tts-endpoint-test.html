@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Speech API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #4a6cf7;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            min-height: 100px;
+        }
+        button {
+            background-color: #4a6cf7;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #3a5ce5;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: none;
+        }
+        #audio-container {
+            margin-top: 20px;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Text-to-Speech API Test</h1>
+    <div class="form-group">
+        <label for="text-input">Enter text to convert to speech:</label>
+        <textarea id="text-input">Hello, this is a test of the Australian accent for the Speech Buddy application.</textarea>
+    </div>
+    <div class="form-group">
+        <label for="voice-select">Select Voice (optional):</label>
+        <select id="voice-select">
+            <option value="">Default (en-AU-Neural2-B)</option>
+            <option value="en-AU-Neural2-A">en-AU-Neural2-A</option>
+            <option value="en-AU-Neural2-B">en-AU-Neural2-B</option>
+            <option value="en-AU-Neural2-C">en-AU-Neural2-C</option>
+            <option value="en-AU-Neural2-D">en-AU-Neural2-D</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="speed-input">Speaking Rate (0.5 - 2.0):</label>
+        <input type="range" id="speed-input" min="0.5" max="2.0" step="0.1" value="0.9">
+        <span id="speed-value">0.9</span>
+    </div>
+    <button id="convert-btn">Convert to Speech</button>
+    
+    <div id="results">
+        <h2>Results:</h2>
+        <div id="audio-container"></div>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const textInput = document.getElementById('text-input');
+        const voiceSelect = document.getElementById('voice-select');
+        const speedInput = document.getElementById('speed-input');
+        const speedValue = document.getElementById('speed-value');
+        const convertBtn = document.getElementById('convert-btn');
+        const results = document.getElementById('results');
+        const audioContainer = document.getElementById('audio-container');
+        const log = document.getElementById('log');
+
+        // Update speed value display
+        speedInput.addEventListener('input', () => {
+            speedValue.textContent = speedInput.value;
+        });
+
+        // Handle form submission
+        convertBtn.addEventListener('click', async () => {
+            const text = textInput.value.trim();
+            if (!text) {
+                logMessage('Please enter some text to convert', 'error');
+                return;
+            }
+
+            // Clear previous results
+            audioContainer.innerHTML = '';
+            log.innerHTML = '';
+            results.style.display = 'block';
+
+            // Prepare request data
+            const requestData = {
+                text: text
+            };
+
+            // Add optional parameters if provided
+            if (voiceSelect.value) {
+                requestData.voiceName = voiceSelect.value;
+            }
+            
+            requestData.speakingRate = parseFloat(speedInput.value);
+
+            logMessage(`Sending request to /api/speech/tts\nRequest data: ${JSON.stringify(requestData, null, 2)}`);
+
+            try {
+                // Send request to TTS API
+                const response = await fetch('/api/speech/tts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                // Log response headers
+                logMessage(`Response status: ${response.status} ${response.statusText}`);
+                const headers = {};
+                response.headers.forEach((value, name) => {
+                    headers[name] = value;
+                });
+                logMessage(`Response headers: ${JSON.stringify(headers, null, 2)}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API request failed with status ${response.status}: ${errorText}`);
+                }
+
+                // Get audio as blob
+                const audioBlob = await response.blob();
+                logMessage(`Received audio data: ${audioBlob.size} bytes`, 'success');
+
+                // Create audio element
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audioElement = document.createElement('audio');
+                audioElement.controls = true;
+                audioElement.src = audioUrl;
+                audioContainer.appendChild(audioElement);
+
+                // Add download link
+                const downloadLink = document.createElement('a');
+                downloadLink.href = audioUrl;
+                downloadLink.download = 'tts-output.mp3';
+                downloadLink.textContent = 'Download Audio';
+                downloadLink.style.display = 'block';
+                downloadLink.style.marginTop = '10px';
+                audioContainer.appendChild(downloadLink);
+
+                logMessage('Test completed successfully!', 'success');
+            } catch (error) {
+                logMessage(`Error: ${error.message}`, 'error');
+            }
+        });
+
+        // Helper function to log messages
+        function logMessage(message, type = '') {
+            const entry = document.createElement('div');
+            entry.textContent = message;
+            if (type) {
+                entry.classList.add(type);
+            }
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+    </script>
+</body>
+</html> 
