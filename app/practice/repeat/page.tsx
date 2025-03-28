@@ -17,7 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Mic, Play, Square, Volume2, VolumeX, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Sample phrases for practice (would be fetched from API in production)
+// Sample phrases for practice (fallback if API fails)
 const PRACTICE_PHRASES = [
   {
     id: 1,
@@ -57,6 +57,8 @@ export default function RepeatAfterMePage() {
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [volume, setVolume] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [practicePhrases, setPracticePhrases] = useState(PRACTICE_PHRASES);
+  const [loadingPhrase, setLoadingPhrase] = useState(false);
   
   // Audio processing
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -65,30 +67,80 @@ export default function RepeatAfterMePage() {
   
   const currentPhrase = PRACTICE_PHRASES[currentPhraseIndex];
   
-  // Function to play the TTS audio
-  const playAudio = async () => {
+  // Function to fetch a practice phrase from the API
+  const fetchPracticePhrase = async () => {
+    try {
+      setLoadingPhrase(true);
+      
+      // Map focus to sound parameter
+      let sound = 'r';
+      if (currentPhrase.focus === 'R Sounds') sound = 'r';
+      else if (currentPhrase.focus === 'S Sounds') sound = 's';
+      else if (currentPhrase.focus === 'L Sounds') sound = 'l';
+      else if (currentPhrase.focus === 'Th Sounds') sound = 'th';
+      
+      // Map string difficulty to numeric level
+      let level = 1;
+      if (currentPhrase.difficulty === 'Easy') level = 1;
+      else if (currentPhrase.difficulty === 'Medium') level = 2;
+      else if (currentPhrase.difficulty === 'Hard') level = 3;
+      
+      // Fetch the practice audio
+      const response = await fetch('/api/speech/practice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sound,
+          difficulty: level
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch practice phrase');
+      }
+      
+      // Process the audio directly
+      if (audioRef.current) {
+        // Get audio as blob and create URL
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // Set the audio source and play
+        audioRef.current.src = audioUrl;
+        audioRef.current.onloadedmetadata = () => {
+          setLoadingPhrase(false);
+          setLoadingAudio(false);
+          setIsPlaying(true);
+          audioRef.current?.play();
+        };
+        
+        audioRef.current.onended = () => {
+          setIsPlaying(false);
+          URL.revokeObjectURL(audioUrl); // Clean up the URL
+        };
+      }
+    } catch (error) {
+      console.error('Error fetching practice phrase:', error);
+      setLoadingPhrase(false);
+      // Fallback to default TTS if the practice API fails
+      playAudio();
+    }
+  };
+  
+  // Function to play audio directly from a response
+  const playAudioFromResponse = async (response: Response) => {
     if (!volume) return;
     
     try {
       setLoadingAudio(true);
       
-      // In a real implementation, this would call the TTS API
-      // For now, we'll simulate the API call
+      // Get audio as blob and create URL
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
       
-      // Simulating API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In production, we would fetch from the API:
-      // const response = await fetch('/api/speech/tts', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ text: currentPhrase.text })
-      // });
-      // const audioBlob = await response.blob();
-      
-      // For demo purposes, we'll just use a static audio file
+      // Set the audio source and play
       if (audioRef.current) {
-        audioRef.current.src = `/demo-audio-${currentPhraseIndex + 1}.mp3`;
+        audioRef.current.src = audioUrl;
         audioRef.current.onloadedmetadata = () => {
           setLoadingAudio(false);
           setIsPlaying(true);
@@ -97,11 +149,71 @@ export default function RepeatAfterMePage() {
         
         audioRef.current.onended = () => {
           setIsPlaying(false);
+          URL.revokeObjectURL(audioUrl); // Clean up the URL
+        };
+        
+        audioRef.current.onerror = (e) => {
+          console.error("Audio playback error:", e);
+          setLoadingAudio(false);
+          setIsPlaying(false);
         };
       }
     } catch (error) {
       console.error("Error playing audio:", error);
       setLoadingAudio(false);
+      setIsPlaying(false);
+    }
+  };
+
+  // Function to play the TTS audio
+  const playAudio = async () => {
+    if (!volume) return;
+    
+    try {
+      setLoadingAudio(true);
+      
+      // Call the TTS API to generate audio for the current phrase
+      const response = await fetch('/api/speech/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: currentPhrase.text,
+          speakingRate: 0.9 // Slightly slower for practice
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`TTS API error: ${response.status} ${response.statusText}`);
+      }
+      
+      // Get audio as blob and create URL
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Set the audio source and play
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.onloadedmetadata = () => {
+          setLoadingAudio(false);
+          setIsPlaying(true);
+          audioRef.current?.play();
+        };
+        
+        audioRef.current.onended = () => {
+          setIsPlaying(false);
+          URL.revokeObjectURL(audioUrl); // Clean up the URL
+        };
+        
+        audioRef.current.onerror = (e) => {
+          console.error("Audio playback error:", e);
+          setLoadingAudio(false);
+          setIsPlaying(false);
+        };
+      }
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      setLoadingAudio(false);
+      setIsPlaying(false);
     }
   };
   
@@ -171,36 +283,94 @@ export default function RepeatAfterMePage() {
     try {
       setLoadingAnalysis(true);
       
-      // In a real implementation, this would call the ASR API
-      // For now, we'll simulate the API call
+      // Create FormData with the audio blob and target parameters
+      const formData = new FormData();
+      formData.append('audio', blob, 'recording.wav');
       
-      // Simulating API delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // In production, we would send to the API:
-      // const formData = new FormData();
-      // formData.append('audio', blob, 'recording.wav');
-      // formData.append('targetText', currentPhrase.text);
-      // 
-      // const response = await fetch('/api/speech/asr', {
-      //   method: 'POST',
-      //   body: formData
-      // });
-      // const data = await response.json();
-      
-      // Simulate different feedback based on the phrase
-      let simulatedFeedback = "";
-      if (currentPhraseIndex === 0) {
-        simulatedFeedback = "Great job with the 'r' sounds! Try to emphasize the 'r' in 'rapidly' a bit more.";
-      } else if (currentPhraseIndex === 1) {
-        simulatedFeedback = "Good attempt! The 's' sounds were clear, but try to slow down when saying 'seashells'.";
-      } else if (currentPhraseIndex === 2) {
-        simulatedFeedback = "Excellent! Your 'l' sounds were very clear.";
-      } else {
-        simulatedFeedback = "Nice try! The 'th' sound in 'think' was perfect, but the 'th' in 'thin' needs a bit more practice.";
+      // Add target sound parameter based on current phrase focus
+      let targetSound = '';
+      if (currentPhrase.focus.includes('R Sound')) {
+        targetSound = 'r';
+      } else if (currentPhrase.focus.includes('S Sound')) {
+        targetSound = 's';
+      } else if (currentPhrase.focus.includes('L Sound')) {
+        targetSound = 'l';
+      } else if (currentPhrase.focus.includes('Th Sound')) {
+        targetSound = 'th';
       }
       
-      setFeedback(simulatedFeedback);
+      if (targetSound) {
+        formData.append('targetSound', targetSound);
+      }
+      
+      // Add the current phrase as target text (for comparison)
+      formData.append('targetText', currentPhrase.text);
+      
+      // Set the language code to Australian English
+      formData.append('languageCode', 'en-AU');
+      
+      // Make the API call to the ASR endpoint
+      const response = await fetch('/api/speech/asr', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`ASR API responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Check if we have valid transcription data
+      if (!data.transcript) {
+        setFeedback("We couldn't hear you clearly. Please try speaking louder or move closer to the microphone.");
+        setLoadingAnalysis(false);
+        return;
+      }
+      
+      // Save the transcription and analysis data
+      const transcription = data.transcript;
+      
+      // Generate feedback based on API response
+      let feedbackMessage = '';
+      
+      // If we have target sound analysis, use that for feedback
+      if (data.targetSoundAnalysis && targetSound) {
+        const analysis = data.targetSoundAnalysis;
+        const accuracy = analysis.accuracy;
+        
+        if (accuracy >= 90) {
+          feedbackMessage = `Excellent! Your ${currentPhrase.focus} pronunciation was very clear (${accuracy}% accuracy). `;
+        } else if (accuracy >= 70) {
+          feedbackMessage = `Good job! Your ${currentPhrase.focus} pronunciation was mostly clear (${accuracy}% accuracy). `;
+        } else {
+          feedbackMessage = `Nice try! Your ${currentPhrase.focus} needs a bit more practice (${accuracy}% accuracy). `;
+        }
+        
+        // Add specific word feedback if available
+        if (analysis.incorrectWords.length > 0) {
+          feedbackMessage += `Try to focus on these words: ${analysis.incorrectWords.slice(0, 3).join(', ')}.`;
+        }
+        
+        // Add a tip from the suggestions if available
+        if (analysis.suggestions.length > 0) {
+          feedbackMessage += ` Tip: ${analysis.suggestions[0]}`;
+        }
+      } else if (data.phoneticAnalysis) {
+        // Use general phonetic analysis if target sound analysis isn't available
+        const phoneticAnalysis = data.phoneticAnalysis;
+        feedbackMessage = `I heard: "${transcription}". Overall pronunciation score: ${phoneticAnalysis.overallScore}%. `;
+        
+        // Add suggestions if available
+        if (phoneticAnalysis.suggestions.length > 0) {
+          feedbackMessage += phoneticAnalysis.suggestions[0];
+        }
+      } else {
+        // Fallback to basic feedback
+        feedbackMessage = `I heard: "${transcription}". Keep practicing!`;
+      }
+      
+      setFeedback(feedbackMessage);
       setLoadingAnalysis(false);
       
     } catch (error) {
@@ -242,206 +412,672 @@ export default function RepeatAfterMePage() {
     };
   }, []);
   
+  // Update UI element (play button) based on whether we should use the practice API or standard TTS
+  const handlePlayButtonClick = () => {
+    if (isPlaying || loadingAudio || isRecording) return;
+    
+    // For the first time a user clicks play on a new phrase, try using the practice API
+    // which will generate a specific practice phrase based on the sound focus
+    if (currentPhrase.focus.includes('R Sound')) {
+      fetchPracticePhrase(); // This will use the specialized practice endpoint
+    } else {
+      playAudio(); // This will use the standard TTS endpoint with the predefined phrase
+    }
+  };
+  
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Hidden audio element for TTS playback */}
-      <audio ref={audioRef} className="hidden" />
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      flexDirection: 'column',
+      backgroundColor: '#fff',
+      fontFamily: "'Comic Neue', 'Comic Sans MS', 'Arial', sans-serif",
+      color: '#333',
+      background: 'linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%)'
+    }}>
+      {/* Animation Keyframes */}
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(-3deg); }
+          50% { transform: rotate(3deg); }
+        }
+        @keyframes recording-pulse {
+          0%, 100% { transform: scale(1); background-color: #EF476F; }
+          50% { transform: scale(1.05); background-color: #FF6B6B; }
+        }
+      `}</style>
       
       {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              <Image 
-                src="/logo-icon.svg" 
-                alt="Speech Buddy" 
-                width={24} 
-                height={24}
-                className="animate-pulse-soft"
-              />
-              <span className="font-medium">Dashboard</span>
+      <header style={{
+        borderBottom: '2px solid #FFD166',
+        backgroundColor: 'white',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'flex',
+          height: '4.5rem',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 1rem'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem'
+          }}>
+            <Link href="/dashboard" style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              textDecoration: 'none',
+              color: '#2563EB'
+            }}>
+              <ArrowLeft style={{ 
+                width: '1.25rem', 
+                height: '1.25rem'
+              }} />
+              <span style={{ 
+                fontWeight: '600',
+                fontSize: '1rem'
+              }}>Back to Dashboard</span>
             </Link>
           </div>
-          <UserButton afterSignOutUrl="/" />
+          
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem'
+          }}>
+            <button
+              onClick={() => setVolume(!volume)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0.5rem',
+                borderRadius: '0.5rem',
+                backgroundColor: volume ? '#EFF6FF' : '#F3F4F6',
+                color: volume ? '#2563EB' : '#6B7280',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {volume ? (
+                <Volume2 style={{ width: '1.25rem', height: '1.25rem' }} />
+              ) : (
+                <VolumeX style={{ width: '1.25rem', height: '1.25rem' }} />
+              )}
+            </button>
+            <UserButton afterSignOutUrl="/" />
+          </div>
         </div>
       </header>
-      
+
       {/* Main Content */}
-      <main className="container max-w-3xl flex-1 px-4 py-8">
-        <div className="space-y-6">
-          {/* Exercise Header */}
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-primary">Repeat After Me</h1>
-            <p className="text-muted-foreground">
-              Listen to the phrase, then record yourself saying it. We'll give you feedback on your pronunciation!
-            </p>
+      <main style={{
+        flex: '1',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '2rem 1rem'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '800px',
+          marginBottom: '2rem',
+          textAlign: 'center'
+        }}>
+          <h1 style={{
+            fontSize: '2.5rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            color: '#2563EB',
+            textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)'
+          }}>
+            Repeat After Me
+          </h1>
+          <p style={{
+            fontSize: '1.25rem',
+            color: '#4B5563',
+            maxWidth: '600px',
+            margin: '0 auto',
+            lineHeight: '1.6'
+          }}>
+            Listen carefully and repeat the phrase to practice your pronunciation!
+          </p>
+        </div>
+
+        {/* Exercise Card */}
+        <div style={{
+          width: '100%',
+          maxWidth: '800px',
+          borderRadius: '1.5rem',
+          border: '2px solid #FFD166',
+          backgroundColor: 'white',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden',
+          transform: 'rotate(0.5deg)'
+        }}>
+          {/* Card Header */}
+          <div style={{
+            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)',
+            color: 'white',
+            padding: '1.5rem 2rem',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <h2 style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  marginBottom: '0.5rem',
+                  textShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)'
+                }}>
+                  {currentPhrase.focus}
+                </h2>
+                <p style={{
+                  fontSize: '1rem',
+                  opacity: '0.9'
+                }}>
+                  Difficulty: {currentPhrase.difficulty}
+                </p>
+              </div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                backgroundColor: '#FFD166',
+                color: '#2563EB',
+                fontWeight: '600',
+                padding: '0.5rem 0.75rem',
+                borderRadius: '1rem',
+                fontSize: '0.875rem',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+              }}>
+                Phrase {currentPhraseIndex + 1} of {PRACTICE_PHRASES.length}
+              </div>
+            </div>
           </div>
-          
-          {/* Exercise Card */}
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-primary/10">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Mic className="h-5 w-5 text-primary" />
-                  {currentPhrase.focus} Practice
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => setVolume(!volume)}
-                  >
-                    {volume ? (
-                      <Volume2 className="h-4 w-4" />
-                    ) : (
-                      <VolumeX className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <span className="text-sm font-medium">
-                    Difficulty: {currentPhrase.difficulty}
-                  </span>
-                </div>
+
+          {/* Card Content */}
+          <div style={{ padding: '2rem' }}>
+            {/* Current Phrase Display */}
+            <div style={{
+              marginBottom: '2rem',
+              padding: '1.5rem',
+              backgroundColor: '#EFF6FF',
+              borderRadius: '1rem',
+              border: '2px dashed #3B82F6',
+              textAlign: 'center'
+            }}>
+              <p style={{
+                fontSize: '1.75rem',
+                fontWeight: '600',
+                color: '#2563EB',
+                lineHeight: '1.5'
+              }}>
+                {currentPhrase.text}
+              </p>
+            </div>
+
+            {/* Controls */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1.5rem'
+            }}>
+              {/* Play Button Section */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
+                <p style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: '#4B5563'
+                }}>1. Listen to the phrase</p>
+                <button
+                  onClick={handlePlayButtonClick}
+                  disabled={isPlaying || loadingAudio}
+                  style={{
+                    width: '4rem',
+                    height: '4rem',
+                    borderRadius: '50%',
+                    backgroundColor: isPlaying ? '#06D6A0' : '#3B82F6',
+                    color: 'white',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                    animation: isPlaying ? 'pulse 1s infinite ease-in-out' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {loadingAudio ? (
+                    <span style={{ fontSize: '1.25rem' }}>...</span>
+                  ) : (
+                    <Play style={{ 
+                      width: '1.75rem', 
+                      height: '1.75rem',
+                      marginLeft: '4px' // Slight adjustment for the play icon
+                    }} />
+                  )}
+                </button>
+                <audio ref={audioRef} className="hidden" />
               </div>
-            </CardHeader>
-            
-            <CardContent className="p-6">
-              {/* Phrase Display */}
-              <div className="mb-6 rounded-lg bg-muted p-6 text-center">
-                <h3 className="text-xl font-medium tracking-wide">
-                  {currentPhrase.text}
-                </h3>
-              </div>
-              
-              {/* Controls */}
-              <div className="space-y-6">
-                {/* Audio Playback */}
-                <div className="flex flex-col items-center gap-4">
-                  <Button 
-                    onClick={playAudio}
-                    disabled={isPlaying || loadingAudio || isRecording}
-                    className="h-16 w-16 rounded-full"
-                  >
-                    {loadingAudio ? (
-                      <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-                    ) : (
-                      <Play className="h-6 w-6" />
-                    )}
-                  </Button>
-                  <span className="text-sm font-medium">
-                    {loadingAudio 
-                      ? "Loading audio..." 
-                      : isPlaying 
-                        ? "Playing..." 
-                        : "Listen to the phrase"}
-                  </span>
-                </div>
-                
-                {/* Recording */}
-                {!recordingComplete ? (
-                  <div className="flex flex-col items-center gap-4">
-                    <Button 
-                      onClick={isRecording ? stopRecording : startRecording}
-                      disabled={isPlaying || loadingAudio || (isRecording && progress < 20)}
-                      className={`h-16 w-16 rounded-full ${isRecording ? 'bg-destructive hover:bg-destructive/90' : ''}`}
+
+              {/* Record Button Section */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
+                <p style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: '#4B5563'
+                }}>2. Now it's your turn</p>
+                {isRecording ? (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '1rem'
+                  }}>
+                    <div style={{
+                      width: '100%',
+                      height: '0.75rem',
+                      backgroundColor: '#e5e7eb',
+                      borderRadius: '9999px',
+                      overflow: 'hidden',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <div 
+                        style={{
+                          height: '100%',
+                          width: `${progress}%`,
+                          background: 'linear-gradient(to right, #4F46E5, #3B82F6)',
+                          borderRadius: '9999px',
+                          transition: 'width 0.1s linear'
+                        }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        mediaRecorderRef.current?.stop();
+                        setIsRecording(false);
+                      }}
+                      style={{
+                        width: '4rem',
+                        height: '4rem',
+                        borderRadius: '50%',
+                        backgroundColor: '#EF476F',
+                        color: 'white',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 6px rgba(239, 71, 111, 0.3)',
+                        animation: 'recording-pulse 1.5s infinite',
+                        transition: 'all 0.2s ease'
+                      }}
                     >
-                      {isRecording ? (
-                        <Square className="h-6 w-6" />
-                      ) : (
-                        <Mic className="h-6 w-6" />
-                      )}
-                    </Button>
-                    <span className="text-sm font-medium">
-                      {isRecording 
-                        ? "Recording... (tap to stop)" 
-                        : "Record your voice"}
-                    </span>
-                    
-                    {isRecording && (
-                      <div className="w-full space-y-2">
-                        <Progress value={progress} className="h-2 w-full" />
-                        <div className="flex justify-between">
-                          <span className="text-xs text-muted-foreground">0s</span>
-                          <span className="text-xs text-muted-foreground">5s</span>
-                        </div>
-                      </div>
-                    )}
+                      <Square style={{ width: '1.75rem', height: '1.75rem' }} />
+                    </button>
+                    <p style={{
+                      fontSize: '0.875rem',
+                      color: '#4B5563'
+                    }}>
+                      Recording... Click to stop
+                    </p>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="space-y-2 text-center">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                        <Mic className="h-6 w-6 text-primary" />
-                      </div>
-                      <span className="text-sm font-medium">Recording complete!</span>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Feedback */}
-                {loadingAnalysis && (
-                  <div className="rounded-lg bg-muted p-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                      <span>Analyzing your speech...</span>
-                    </div>
-                  </div>
-                )}
-                
-                {feedback && (
-                  <Alert className="border-primary/20 bg-primary/5">
-                    <AlertDescription className="py-2">
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          <span className="text-xl">🎯</span>
-                          <p>{feedback}</p>
-                        </div>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
+                  <button
+                    onClick={() => startRecording()}
+                    disabled={isPlaying || loadingAnalysis}
+                    style={{
+                      width: '4rem',
+                      height: '4rem',
+                      borderRadius: '50%',
+                      backgroundColor: '#3B82F6',
+                      color: 'white',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Mic style={{ width: '1.75rem', height: '1.75rem' }} />
+                  </button>
                 )}
               </div>
-            </CardContent>
+
+              {/* Feedback Section */}
+              {feedback && (
+                <div style={{
+                  width: '100%',
+                  padding: '1.5rem',
+                  borderRadius: '1rem',
+                  backgroundColor: recordingComplete ? '#F0FDF4' : '#FFFBEB',
+                  border: recordingComplete ? '2px solid #06D6A0' : '2px solid #FFD166',
+                  marginTop: '1rem'
+                }}>
+                  <h3 style={{
+                    fontSize: '1.25rem',
+                    fontWeight: '600',
+                    marginBottom: '0.75rem',
+                    color: recordingComplete ? '#059669' : '#2563EB',
+                    textAlign: 'center'
+                  }}>
+                    {recordingComplete ? 'Great job!' : 'Keep practicing!'}
+                  </h3>
+                  <p style={{
+                    fontSize: '1rem',
+                    color: '#4B5563',
+                    lineHeight: '1.6',
+                    textAlign: 'center'
+                  }}>
+                    {feedback}
+                  </p>
+                </div>
+              )}
+
+              {loadingAnalysis && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginTop: '1rem'
+                }}>
+                  <div style={{
+                    width: '3rem',
+                    height: '3rem',
+                    borderRadius: '50%',
+                    border: '3px solid #E5E7EB',
+                    borderTopColor: '#3B82F6',
+                    animation: 'spin 1s linear infinite'
+                  }}></div>
+                  <p style={{ fontSize: '0.875rem', color: '#4B5563' }}>
+                    Analyzing your speech...
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card Footer */}
+          <div style={{
+            padding: '1.5rem 2rem',
+            borderTop: '2px solid #EFF6FF',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <button
+              onClick={() => {
+                if (currentPhraseIndex > 0) {
+                  setCurrentPhraseIndex(currentPhraseIndex - 1);
+                  setFeedback(null);
+                  setRecordingComplete(false);
+                  setProgress(0);
+                }
+              }}
+              disabled={currentPhraseIndex === 0}
+              style={{
+                padding: '0.75rem 1.25rem',
+                borderRadius: '0.75rem',
+                border: 'none',
+                backgroundColor: currentPhraseIndex === 0 ? '#F3F4F6' : '#EFF6FF',
+                color: currentPhraseIndex === 0 ? '#9CA3AF' : '#2563EB',
+                fontWeight: '600',
+                cursor: currentPhraseIndex === 0 ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                boxShadow: currentPhraseIndex === 0 ? 'none' : '0 2px 4px rgba(59, 130, 246, 0.2)'
+              }}
+            >
+              <ArrowLeft style={{ width: '1rem', height: '1rem' }} />
+              Previous
+            </button>
             
-            <CardFooter className="border-t bg-card p-4">
-              <div className="flex w-full items-center justify-between">
-                <Button
-                  variant="outline"
-                  onClick={goToPreviousPhrase}
-                  disabled={loadingAnalysis}
-                >
-                  Previous Phrase
-                </Button>
-                
-                <Button
-                  onClick={goToNextPhrase}
-                  disabled={loadingAnalysis}
-                  className="gap-2"
-                >
-                  Next Phrase
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
-          
-          {/* Tips Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Tips for Better Pronunciation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-inside list-disc space-y-2">
-                <li>Speak slowly and clearly when practicing new sounds</li>
-                <li>Watch your mouth in a mirror to see how you're forming sounds</li>
-                <li>Try to practice in a quiet environment for better recordings</li>
-                <li>Listen to the phrase multiple times if needed before recording</li>
-                <li>Don't worry about making mistakes - practice makes perfect!</li>
-              </ul>
-            </CardContent>
-          </Card>
+            <button
+              onClick={() => {
+                if (currentPhraseIndex < PRACTICE_PHRASES.length - 1) {
+                  setCurrentPhraseIndex(currentPhraseIndex + 1);
+                  setFeedback(null);
+                  setRecordingComplete(false);
+                  setProgress(0);
+                }
+              }}
+              disabled={currentPhraseIndex === PRACTICE_PHRASES.length - 1}
+              style={{
+                padding: '0.75rem 1.25rem',
+                borderRadius: '0.75rem',
+                border: 'none',
+                backgroundColor: currentPhraseIndex === PRACTICE_PHRASES.length - 1 ? '#F3F4F6' : '#3B82F6',
+                color: currentPhraseIndex === PRACTICE_PHRASES.length - 1 ? '#9CA3AF' : 'white',
+                fontWeight: '600',
+                cursor: currentPhraseIndex === PRACTICE_PHRASES.length - 1 ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                boxShadow: currentPhraseIndex === PRACTICE_PHRASES.length - 1 ? 'none' : '0 4px 6px rgba(59, 130, 246, 0.3)'
+              }}
+            >
+              Next
+              <ChevronRight style={{ width: '1rem', height: '1rem' }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Tips Container */}
+        <div style={{
+          width: '100%',
+          maxWidth: '800px',
+          marginTop: '2rem',
+          borderRadius: '1.5rem',
+          border: '2px dashed #06D6A0',
+          backgroundColor: 'white',
+          padding: '1.5rem',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+          transform: 'rotate(-0.5deg)'
+        }}>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            color: '#059669',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            textShadow: '1px 1px 0px rgba(5, 150, 105, 0.1)'
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>💡</span> Tips for "{currentPhrase.focus}"
+          </h3>
+          <ul style={{
+            listStyleType: 'none',
+            padding: '0',
+            margin: '0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem'
+          }}>
+            {currentPhrase.focus === "R Sounds" && (
+              <>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
+                  Pull the tip of your tongue back slightly without touching the roof of your mouth.
+                </li>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+                  Round your lips a little when making the 'r' sound.
+                </li>
+              </>
+            )}
+            {currentPhrase.focus === "S Sounds" && (
+              <>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
+                  Place the tip of your tongue just behind your top front teeth.
+                </li>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+                  Let the air flow over the center of your tongue.
+                </li>
+              </>
+            )}
+            {currentPhrase.focus === "L Sounds" && (
+              <>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
+                  Touch the tip of your tongue to the ridge behind your upper front teeth.
+                </li>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+                  Let the sound come out around the sides of your tongue.
+                </li>
+              </>
+            )}
+            {currentPhrase.focus === "Th Sounds" && (
+              <>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
+                  Place the tip of your tongue between your upper and lower front teeth.
+                </li>
+                <li style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  fontSize: '1rem',
+                  color: '#4B5563',
+                  lineHeight: '1.5'
+                }}>
+                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+                  Gently blow air out of your mouth to make the 'th' sound.
+                </li>
+              </>
+            )}
+          </ul>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer style={{ 
+        borderTop: '2px solid #EBF5FF', 
+        padding: '1.5rem 0',
+        backgroundColor: 'white',
+        marginTop: '2rem'
+      }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.75rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ 
+            width: '2.5rem', 
+            height: '2.5rem', 
+            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+            borderRadius: '50%', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1rem',
+            fontWeight: 'bold',
+            animation: 'float 3s infinite ease-in-out'
+          }}>S</div>
+          <p style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+            Speech Buddy - Practice makes perfect!
+          </p>
+        </div>
+      </footer>
     </div>
   );
 } 
