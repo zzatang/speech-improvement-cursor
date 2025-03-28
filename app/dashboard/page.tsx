@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [progress, setProgress] = useState(42);
   const [selectedAvatar, setSelectedAvatar] = useState(1);
   const [streakCount, setStreakCount] = useState(5);
+  const [activeTab, setActiveTab] = useState("customize");
   
   // Animate progress bar on load
   useEffect(() => {
@@ -61,24 +62,93 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      flexDirection: 'column',
+      backgroundColor: '#fff',
+      fontFamily: "'Comic Neue', 'Comic Sans MS', 'Arial', sans-serif",
+      color: '#333',
+      background: 'linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%)'
+    }}>
+      {/* Animation Keyframes */}
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(-3deg); }
+          50% { transform: rotate(3deg); }
+        }
+      `}</style>
+      
       {/* Dashboard Header */}
-      <header className="border-b bg-card">
-        <div className="container flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <Image 
-              src="/logo-icon.svg" 
-              alt="Speech Buddy" 
-              width={32} 
-              height={32}
-              className="animate-pulse-soft"
-            />
-            <h1 className="text-xl font-bold text-primary logo-text">Speech Buddy</h1>
+      <header style={{
+        borderBottom: '2px solid #FFD166',
+        backgroundColor: 'white',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'flex',
+          height: '4.5rem',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 1rem'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem'
+          }}>
+            <div style={{ 
+              height: '45px', 
+              width: '45px', 
+              background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+              borderRadius: '50%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: '1.5rem',
+              boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+              animation: 'pulse 3s infinite ease-in-out'
+            }}>S</div>
+            <span style={{ 
+              fontWeight: 'bold', 
+              fontSize: '1.75rem',
+              background: 'linear-gradient(45deg, #4F46E5, #2563EB)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>Speech Buddy</span>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span className="text-sm">Day {streakCount}</span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              backgroundColor: '#FFD166',
+              padding: '0.5rem 0.75rem',
+              borderRadius: '1rem',
+              color: '#4B5563',
+              fontWeight: '600',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              animation: 'pulse 3s infinite ease-in-out'
+            }}>
+              <Calendar style={{ width: '1.25rem', height: '1.25rem', color: '#2563EB' }} />
+              <span style={{ fontSize: '1rem' }}>Day {streakCount} Streak!</span>
             </div>
             <UserButton afterSignOutUrl="/" />
           </div>
@@ -86,251 +156,370 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <main className="container flex-1 px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Left Column */}
-          <div className="flex flex-col gap-6">
-            {/* Welcome Card */}
-            <Card className="overflow-hidden">
-              <CardHeader className="bg-primary text-primary-foreground">
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5" />
-                  Welcome Back, Star Speaker!
-                </CardTitle>
-                <CardDescription className="text-primary-foreground/80">
-                  You're on a {streakCount}-day streak! Keep it up!
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-medium">Overall Progress</span>
-                  <span className="text-sm font-medium">{progress}%</span>
-                </div>
-                <Progress value={progress} className="h-2 w-full" />
-                
-                <div className="mt-6 flex flex-col gap-4">
-                  <h3 className="text-lg font-medium">Continue Your Journey</h3>
-                  <div className="grid gap-3">
-                    <Link href="/practice/repeat">
-                      <Button variant="outline" className="w-full justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                            <Mic className="h-4 w-4 text-primary" />
-                          </div>
-                          <span>Repeat After Me</span>
-                        </div>
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                    <Link href="/practice/reading">
-                      <Button variant="outline" className="w-full justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary/10">
-                            <BookOpen className="h-4 w-4 text-secondary" />
-                          </div>
-                          <span>Reading Practice</span>
-                        </div>
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Progress Map */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Star className="h-5 w-5 text-primary" />
-                  Speech Adventure Map
-                </CardTitle>
-                <CardDescription>
-                  Track your progress through speech sounds
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="relative">
-                  {/* Progress Path */}
-                  <div className="absolute left-1/2 top-0 h-full w-1 -translate-x-1/2 bg-muted" />
+      <main style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '2rem 1rem',
+        flex: 1
+      }}>
+        <div style={{
+          display: 'grid',
+          gap: '2rem',
+          gridTemplateColumns: '1fr'
+        }}>
+          {/* Welcome Card */}
+          <div style={{
+            borderRadius: '1.5rem',
+            border: '2px solid #06D6A0',
+            overflow: 'hidden',
+            backgroundColor: 'white',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            transform: 'rotate(0.5deg)'
+          }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #4F46E5, #3B82F6)',
+              padding: '1.5rem 2rem',
+              color: 'white'
+            }}>
+              <h2 style={{
+                fontSize: '1.75rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                textShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)'
+              }}>
+                <Trophy style={{ width: '1.5rem', height: '1.5rem', animation: 'pulse 2s infinite ease-in-out' }} />
+                Welcome Back, Star Speaker!
+              </h2>
+              <p style={{
+                fontSize: '1.1rem',
+                opacity: '0.9',
+                marginTop: '0.5rem'
+              }}>
+                You're on a {streakCount}-day streak! Keep it up!
+              </p>
+            </div>
+            <div style={{ padding: '1.75rem 2rem' }}>
+              <div style={{
+                marginBottom: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <span style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: '#2563EB'
+                }}>Overall Progress</span>
+                <span style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: '#2563EB',
+                  backgroundColor: '#EFF6FF',
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '1rem'
+                }}>{progress}%</span>
+              </div>
+              <div style={{
+                width: '100%',
+                height: '0.75rem',
+                backgroundColor: '#e5e7eb',
+                borderRadius: '9999px',
+                overflow: 'hidden',
+                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
+              }}>
+                <div 
+                  style={{
+                    height: '100%',
+                    width: `${progress}%`,
+                    background: 'linear-gradient(to right, #4F46E5, #3B82F6)',
+                    borderRadius: '9999px',
+                    transition: 'width 0.8s ease-in-out'
+                  }}
+                />
+              </div>
+              
+              <div style={{
+                marginTop: '2rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.25rem'
+              }}>
+                <h3 style={{
+                  fontSize: '1.4rem',
+                  fontWeight: '600',
+                  color: '#2563EB',
+                  textAlign: 'center',
+                  textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)'
+                }}>Continue Your Journey</h3>
+                <div style={{
+                  display: 'grid',
+                  gap: '1rem'
+                }}>
+                  <a 
+                    href="/practice/repeat"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '1rem 1.25rem',
+                      borderRadius: '1rem',
+                      border: '2px solid #FFD166',
+                      backgroundColor: 'white',
+                      color: '#4B5563',
+                      textDecoration: 'none',
+                      fontWeight: '600',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                      transition: 'transform 0.2s ease',
+                      transform: 'rotate(-0.5deg)'
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '2.5rem',
+                        height: '2.5rem',
+                        backgroundColor: '#FFD166',
+                        borderRadius: '50%',
+                        animation: 'wiggle 3s infinite ease-in-out'
+                      }}>
+                        <Mic size={20} style={{ color: '#2563EB' }} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#2563EB' }}>Repeat After Me</div>
+                        <div style={{ fontSize: '0.9rem', color: '#6B7280' }}>Practice pronunciation with guidance</div>
+                      </div>
+                    </div>
+                    <ChevronRight style={{ color: '#2563EB' }} />
+                  </a>
                   
-                  {/* Progress Nodes */}
-                  <div className="relative space-y-8 py-2">
-                    {progressNodes.map((node) => (
-                      <div 
-                        key={node.id}
-                        className={`relative flex flex-col items-center ${!node.available ? 'opacity-50' : ''}`}
-                      >
-                        <div 
-                          className={`z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 
-                            ${node.complete 
-                              ? 'border-primary bg-primary text-primary-foreground' 
-                              : node.available 
-                                ? 'border-primary bg-background' 
-                                : 'border-muted bg-muted'}`}
-                        >
-                          {node.complete ? (
-                            <Star className="h-5 w-5" />
-                          ) : (
-                            <span className="font-medium">{node.id}</span>
-                          )}
-                        </div>
-                        <div className="mt-2 text-center">
-                          <h4 className="font-medium">{node.title}</h4>
-                          <p className="text-xs text-muted-foreground">
-                            {node.complete 
-                              ? 'Completed!' 
-                              : node.available 
-                                ? 'In progress' 
-                                : 'Locked'}
-                          </p>
-                        </div>
+                  <a 
+                    href="/practice/reading"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '1rem 1.25rem',
+                      borderRadius: '1rem',
+                      border: '2px solid #06D6A0',
+                      backgroundColor: 'white',
+                      color: '#4B5563',
+                      textDecoration: 'none',
+                      fontWeight: '600',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                      transition: 'transform 0.2s ease',
+                      transform: 'rotate(0.5deg)'
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '2.5rem',
+                        height: '2.5rem',
+                        backgroundColor: '#06D6A0',
+                        borderRadius: '50%',
+                        animation: 'float 3s infinite ease-in-out'
+                      }}>
+                        <BookOpen size={20} style={{ color: '#2563EB' }} />
                       </div>
-                    ))}
-                  </div>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#2563EB' }}>Reading Practice</div>
+                        <div style={{ fontSize: '0.9rem', color: '#6B7280' }}>Read aloud and get feedback</div>
+                      </div>
+                    </div>
+                    <ChevronRight style={{ color: '#2563EB' }} />
+                  </a>
+                  
+                  <a 
+                    href="/profile"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '1rem 1.25rem',
+                      borderRadius: '1rem',
+                      border: '2px solid #118AB2',
+                      backgroundColor: 'white',
+                      color: '#4B5563',
+                      textDecoration: 'none',
+                      fontWeight: '600',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                      transition: 'transform 0.2s ease',
+                      transform: 'rotate(-0.5deg)'
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '2.5rem',
+                        height: '2.5rem',
+                        backgroundColor: '#118AB2',
+                        borderRadius: '50%',
+                        animation: 'pulse 3s infinite ease-in-out'
+                      }}>
+                        <User size={20} style={{ color: 'white' }} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#2563EB' }}>My Profile</div>
+                        <div style={{ fontSize: '0.9rem', color: '#6B7280' }}>View your progress and awards</div>
+                      </div>
+                    </div>
+                    <ChevronRight style={{ color: '#2563EB' }} />
+                  </a>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
-
-          {/* Right Column */}
-          <div className="flex flex-col gap-6">
-            {/* Avatar Customization */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-primary" />
-                  Your Speech Buddy
-                </CardTitle>
-                <CardDescription>
-                  Customize your companion for your speech journey
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="avatar" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="avatar">Choose Avatar</TabsTrigger>
-                    <TabsTrigger value="customize">Customize</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="avatar" className="mt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {avatarOptions.map((avatar) => (
-                        <div 
-                          key={avatar.id}
-                          onClick={() => setSelectedAvatar(avatar.id)}
-                          className={`flex cursor-pointer flex-col items-center rounded-lg p-4 transition-colors hover:bg-muted/50 ${
-                            selectedAvatar === avatar.id ? 'bg-muted' : ''
-                          }`}
-                        >
-                          <div className="mb-2 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-                            <Image
-                              src={avatar.image}
-                              alt={avatar.name}
-                              width={64}
-                              height={64}
-                              className={selectedAvatar === avatar.id ? "animate-bounce-gentle" : ""}
-                            />
-                          </div>
-                          <span className="text-center text-sm font-medium">{avatar.name}</span>
-                        </div>
-                      ))}
+          
+          {/* Progress Map */}
+          <div style={{
+            borderRadius: '1.5rem',
+            border: '2px dashed #3B82F6',
+            backgroundColor: 'white',
+            padding: '1.75rem',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h3 style={{
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              marginBottom: '1.5rem',
+              textAlign: 'center',
+              color: '#2563EB',
+              textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)'
+            }}>
+              Your Speech Adventure Map
+            </h3>
+            
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem'
+            }}>
+              {progressNodes.map((node, index) => (
+                <div key={node.id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '1rem',
+                  backgroundColor: node.complete ? '#F0FDF4' : node.available ? 'white' : '#F9FAFB',
+                  border: node.complete ? '2px solid #06D6A0' : node.available ? '2px solid #FFD166' : '2px solid #E5E7EB',
+                  opacity: node.available ? 1 : 0.6,
+                  transform: index % 2 === 0 ? 'rotate(-0.5deg)' : 'rotate(0.5deg)'
+                }}>
+                  <div style={{
+                    width: '2.5rem',
+                    height: '2.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    backgroundColor: node.complete ? '#06D6A0' : node.available ? '#FFD166' : '#E5E7EB',
+                    color: node.complete || !node.available ? 'white' : '#2563EB',
+                    fontWeight: 'bold',
+                    fontSize: '1.25rem',
+                    animation: node.complete ? 'pulse 3s infinite ease-in-out' : 'none'
+                  }}>
+                    {node.complete ? '✓' : node.id}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{
+                      fontWeight: '600',
+                      fontSize: '1.1rem',
+                      color: node.available ? '#2563EB' : '#6B7280'
+                    }}>
+                      {node.title}
                     </div>
-                  </TabsContent>
-                  <TabsContent value="customize" className="mt-4">
-                    <div className="flex flex-col gap-6">
-                      <div className="mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-primary/10">
-                        <Image
-                          src={avatarOptions.find(a => a.id === selectedAvatar)?.image || '/logo-icon.svg'}
-                          alt="Selected Avatar"
-                          width={96}
-                          height={96}
-                          className="animate-bounce-gentle"
-                        />
-                      </div>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-medium">Accessories</h4>
-                          <div className="flex gap-2">
-                            {['Hat', 'Glasses', 'Bowtie', 'Cape'].map((item, i) => (
-                              <Button key={i} variant="outline" size="sm">
-                                {item}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-medium">Colors</h4>
-                          <div className="flex gap-2">
-                            {['blue', 'red', 'green', 'purple'].map((color, i) => (
-                              <div 
-                                key={i}
-                                className={`h-8 w-8 cursor-pointer rounded-full border-2 border-border ${
-                                  color === 'blue' 
-                                    ? 'bg-blue-500' 
-                                    : color === 'red' 
-                                      ? 'bg-red-500' 
-                                      : color === 'green' 
-                                        ? 'bg-green-500' 
-                                        : 'bg-purple-500'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                    <div style={{
+                      fontSize: '0.875rem',
+                      color: '#6B7280'
+                    }}>
+                      {node.complete ? 'Completed!' : node.available ? 'Available to practice' : 'Locked - complete previous levels first'}
                     </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-              <CardFooter className="border-t px-6 py-4">
-                <Button className="w-full">Save My Buddy</Button>
-              </CardFooter>
-            </Card>
-
-            {/* Achievements */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-primary" />
-                  Your Achievements
-                </CardTitle>
-                <CardDescription>
-                  See the badges you've earned so far!
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { name: "First Login", icon: "🎉", unlocked: true },
-                    { name: "3-Day Streak", icon: "🔥", unlocked: true },
-                    { name: "R Master", icon: "🏆", unlocked: true },
-                    { name: "S Champion", icon: "⭐", unlocked: true },
-                    { name: "Word Wizard", icon: "📚", unlocked: false },
-                    { name: "Sentence Pro", icon: "🎯", unlocked: false },
-                  ].map((badge, i) => (
-                    <div 
-                      key={i} 
-                      className={`flex flex-col items-center rounded-lg p-4 text-center ${
-                        !badge.unlocked ? 'opacity-50' : ''
-                      }`}
-                    >
-                      <div className={`mb-2 flex h-12 w-12 items-center justify-center rounded-full 
-                        ${badge.unlocked ? 'bg-primary/10' : 'bg-muted'}`}
-                      >
-                        <span className="text-2xl">{badge.icon}</span>
-                      </div>
-                      <span className="text-xs font-medium">{badge.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {badge.unlocked ? 'Earned' : 'Locked'}
-                      </span>
-                    </div>
-                  ))}
+                  </div>
+                  {node.available && !node.complete && (
+                    <Button style={{
+                      backgroundColor: node.available ? '#3B82F6' : '#9CA3AF',
+                      color: 'white',
+                      borderRadius: '0.75rem',
+                      fontSize: '0.875rem',
+                      padding: '0.5rem 1rem'
+                    }}>
+                      Practice
+                    </Button>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              ))}
+            </div>
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer style={{ 
+        borderTop: '2px solid #EBF5FF', 
+        padding: '2rem 0',
+        backgroundColor: 'white',
+        marginTop: '2rem'
+      }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '1rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ 
+            width: '3rem', 
+            height: '3rem', 
+            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+            borderRadius: '50%', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            animation: 'float 3s infinite ease-in-out'
+          }}>S</div>
+          <p style={{ fontSize: '1rem', color: '#6B7280' }}>
+            Speech Buddy - Making practice fun!
+          </p>
+          <div style={{
+            display: 'flex',
+            gap: '1rem',
+            marginTop: '0.5rem'
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>🎯</span>
+            <span style={{ fontSize: '1.5rem' }}>🎤</span>
+            <span style={{ fontSize: '1.5rem' }}>🎪</span>
+            <span style={{ fontSize: '1.5rem' }}>🌟</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 } 

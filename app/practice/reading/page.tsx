@@ -195,16 +195,11 @@ export default function ReadingPracticePage() {
         }
       };
       
-      mediaRecorderRef.current.onstop = () => {
+      mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         
-        // In a real implementation, this would send to the API for analysis
-        console.log('Recording stopped, audio blob created:', audioBlob);
-        
-        // Simulate some feedback after recording
-        const textTitle = currentText.title;
-        const textFocus = currentText.focus;
-        setFeedback(`Good job reading "${textTitle}"! Your ${textFocus.toLowerCase()} pronunciation is improving. Keep practicing the highlighted words for better fluency.`);
+        // Send the recording to the ASR API for analysis
+        analyzeRecording(audioBlob);
       };
       
       // Start recording
@@ -246,6 +241,107 @@ export default function ReadingPracticePage() {
       setTimeout(() => {
         startReading();
       }, 100);
+    }
+  };
+  
+  // Function to analyze the recorded audio
+  const analyzeRecording = async (blob: Blob) => {
+    try {
+      setFeedback("Analyzing your reading...");
+      
+      // Create FormData with the audio blob and target parameters
+      const formData = new FormData();
+      formData.append('audio', blob, 'reading.wav');
+      
+      // Add target sound parameter based on current text focus
+      let targetSound = '';
+      if (currentText.focus.includes('P Sound')) {
+        targetSound = 'p';
+      } else if (currentText.focus.includes('S Sound')) {
+        targetSound = 's';
+      } else if (currentText.focus.includes('Th')) {
+        targetSound = 'th';
+      } else if (currentText.focus.includes('Vowel')) {
+        targetSound = 'vowel';
+      }
+      
+      if (targetSound) {
+        formData.append('targetSound', targetSound);
+      }
+      
+      // Add the current text as target text (for comparison)
+      formData.append('targetText', currentText.text);
+      
+      // Set the language code to Australian English
+      formData.append('languageCode', 'en-AU');
+      
+      // Make the API call to the ASR endpoint
+      const response = await fetch('/api/speech/asr', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`ASR API responded with status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Check if we have valid transcription data
+      if (!data.transcript) {
+        setFeedback("We couldn't hear you clearly. Please try speaking louder or move closer to the microphone.");
+        return;
+      }
+      
+      // Save the transcription and analysis data
+      const transcription = data.transcript;
+      
+      // Generate feedback based on API response
+      let feedbackMessage = '';
+      
+      // If we have target sound analysis, use that for feedback
+      if (data.targetSoundAnalysis && targetSound) {
+        const analysis = data.targetSoundAnalysis;
+        const accuracy = analysis.accuracy;
+        
+        if (accuracy >= 90) {
+          feedbackMessage = `Excellent reading of "${currentText.title}"! Your ${currentText.focus} pronunciation was very clear (${accuracy}% accuracy). `;
+        } else if (accuracy >= 70) {
+          feedbackMessage = `Good job reading "${currentText.title}"! Your ${currentText.focus} pronunciation was mostly clear (${accuracy}% accuracy). `;
+        } else {
+          feedbackMessage = `Nice attempt with "${currentText.title}"! Your ${currentText.focus} needs a bit more practice (${accuracy}% accuracy). `;
+        }
+        
+        // Add specific word feedback if available
+        if (analysis.incorrectWords.length > 0) {
+          feedbackMessage += `Try to focus on these words: ${analysis.incorrectWords.slice(0, 3).join(', ')}.`;
+        }
+        
+        // Add a tip from the suggestions if available
+        if (analysis.suggestions.length > 0) {
+          feedbackMessage += ` Tip: ${analysis.suggestions[0]}`;
+        }
+      } else if (data.phoneticAnalysis) {
+        // Use general phonetic analysis if target sound analysis isn't available
+        const phoneticAnalysis = data.phoneticAnalysis;
+        feedbackMessage = `Great reading of "${currentText.title}"! Overall pronunciation score: ${phoneticAnalysis.overallScore}%. `;
+        
+        // Add suggestions if available
+        if (phoneticAnalysis.suggestions.length > 0) {
+          feedbackMessage += phoneticAnalysis.suggestions[0];
+        } else {
+          feedbackMessage += `Keep practicing to improve your fluency!`;
+        }
+      } else {
+        // Fallback to basic feedback
+        feedbackMessage = `Great job reading "${currentText.title}"! Keep practicing to improve your fluency.`;
+      }
+      
+      setFeedback(feedbackMessage);
+      
+    } catch (error) {
+      console.error("Error analyzing recording:", error);
+      setFeedback("Sorry, we couldn't analyze your reading. Please try again.");
     }
   };
   

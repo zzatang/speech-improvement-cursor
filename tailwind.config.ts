@@ -9,7 +9,20 @@ const config: Config = {
 		"./app/**/*.{js,ts,jsx,tsx,mdx}",
 	],
 	theme: {
+		container: {
+			center: true,
+			padding: "2rem",
+			screens: {
+				"2xl": "1400px",
+			},
+		},
 		extend: {
+			fontFamily: {
+				sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+				'geist': ["var(--font-geist-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+				'mono': ["var(--font-geist-mono)", "ui-monospace", "monospace"],
+				'dyslexic': ['OpenDyslexic', 'sans-serif'], // More readable font for kids with dyslexia
+			},
 			colors: {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
@@ -114,6 +127,11 @@ const config: Config = {
 				'progress-fill': {
 					'0%': { width: '0%' },
 					'100%': { width: '100%' }
+				},
+				'wave': {
+					'0%': { transform: 'scale(0.95)', opacity: '0.7' },
+					'50%': { transform: 'scale(1.05)', opacity: '1' },
+					'100%': { transform: 'scale(0.95)', opacity: '0.7' }
 				}
 			},
 			animation: {
@@ -126,15 +144,13 @@ const config: Config = {
 				'scale-up': 'scale-up 0.3s ease-out',
 				'speaking': 'speaking 1.5s ease-in-out infinite',
 				'word-highlight': 'word-highlight 1.5s ease-in-out',
-				'progress-fill': 'progress-fill var(--duration, 3s) linear forwards'
+				'progress-fill': 'progress-fill var(--duration, 3s) linear forwards',
+				'wave': 'wave 3s ease-in-out infinite'
 			},
 			// Custom dimensions for speech components
 			spacing: {
 				'speech-container': '42rem',
 				'word-gap': '0.4rem',
-			},
-			fontFamily: {
-				'dyslexic': ['OpenDyslexic', 'sans-serif'], // More readable font for kids with dyslexia
 			},
 		}
 	},

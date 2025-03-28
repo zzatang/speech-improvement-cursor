@@ -154,9 +154,9 @@ export async function generatePracticeSpeech(sound: string, difficulty: number =
       // Level 1
       ['Lovely leaves fall lightly.', 'Little lions laugh loudly.', 'Look at the lamp light.'],
       // Level 2
-      ['Lucy likes to look at lovely blue lilies.', 'The little lamb loves playing in the long grass.', 'Liam listened to lullabies in the library.'],
+      ['Lucy likes to look at lovely blue lilies.', 'The little lamb loves playing.', 'Liam listened to lullabies.'],
       // Level 3
-      ['Lincoln loyally led the leaping lizards along the long, lonely lane lined with lovely lemon trees.', 'Luna's lullaby lulled the little laughing lemur to sleep like a lamb.', 'Lady Laura leisurely looked through the colorful library looking for a long lost letter.']
+      ['Lincoln led the leaping lizards along the lane.', 'Luna sang a lullaby to the laughing lemur.', 'Laura looked through the library for a letter.']
     ]
   };
   

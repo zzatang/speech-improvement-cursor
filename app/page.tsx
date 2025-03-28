@@ -1,162 +1,431 @@
 "use client"
 
-import Image from 'next/image'
-import Link from "next/link";
+// Removed Link import as we're using direct anchor tags now
+// import Link from "next/link";
+// import Image from "next/image";
 
-export default function LandingPage() {
+export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Hero Section */}
-      <section className="flex flex-col items-center justify-center px-4 py-20 text-center md:py-32">
-        <div className="flex flex-col items-center">
-          <div className="relative h-24 w-24 md:h-32 md:w-32">
-            <Image 
-              src="/logo.svg" 
-              alt="Speech Buddy Logo" 
-              fill
-              className="animate-wave"
-              priority
-            />
+    <div style={{ 
+      minHeight: '100vh', 
+      fontFamily: "'Comic Neue', 'Comic Sans MS', 'Arial', sans-serif",
+      color: '#333',
+      background: 'linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%)'
+    }}>
+      {/* Animation Keyframes */}
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(-3deg); }
+          50% { transform: rotate(3deg); }
+        }
+      `}</style>
+
+      {/* Header */}
+      <header style={{ 
+        backgroundColor: 'white', 
+        padding: '1rem 0', 
+        borderBottom: '2px solid #FFD166',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+      }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ 
+              height: '45px', 
+              width: '45px', 
+              background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+              borderRadius: '50%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: '1.5rem',
+              boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+              animation: 'pulse 3s infinite ease-in-out'
+            }}>S</div>
+            <span style={{ 
+              fontWeight: 'bold', 
+              fontSize: '1.75rem',
+              background: 'linear-gradient(45deg, #4F46E5, #2563EB)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>Speech Buddy</span>
           </div>
-          <h1 className="mt-6 text-4xl font-bold text-primary logo-text md:text-6xl">
-            Speech Buddy
-          </h1>
-          <p className="mt-4 max-w-2xl text-xl text-muted-foreground">
+          <nav style={{ display: 'flex', gap: '1rem' }}>
+            <a href="/sign-in" style={{ 
+              color: '#4F46E5', 
+              textDecoration: 'none',
+              fontWeight: '600',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              transition: 'all 0.2s ease'
+            }}>Sign In</a>
+            <a href="/onboarding" style={{ 
+              background: 'linear-gradient(45deg, #4F46E5, #2563EB)', 
+              color: 'white', 
+              padding: '0.5rem 1.25rem', 
+              borderRadius: '1rem', 
+              textDecoration: 'none',
+              fontWeight: '600',
+              boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+              transition: 'all 0.2s ease'
+            }}>Get Started</a>
+          </nav>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section style={{ padding: '3rem 0 4rem' }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem', 
+          textAlign: 'center'
+        }}>
+          <div style={{ 
+            width: '150px', 
+            height: '150px', 
+            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+            borderRadius: '50%', 
+            margin: '0 auto 2rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '4rem',
+            fontWeight: 'bold',
+            boxShadow: '0 8px 16px rgba(59, 130, 246, 0.3)',
+            animation: 'float 4s infinite ease-in-out'
+          }}>S</div>
+          <h1 style={{ 
+            fontSize: '3rem', 
+            fontWeight: 'bold', 
+            marginBottom: '1rem',
+            color: '#2563EB',
+            textShadow: '2px 2px 0px rgba(59, 130, 246, 0.2)'
+          }}>Speech Buddy</h1>
+          <p style={{ 
+            fontSize: '1.5rem', 
+            color: '#4B5563', 
+            maxWidth: '700px', 
+            margin: '0 auto 2.5rem',
+            lineHeight: '1.6'
+          }}>
             Fun speech practice for young speakers! Improve pronunciation through interactive games.
           </p>
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-            <Link 
-              href="/onboarding" 
-              className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-6 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Get Started
-            </Link>
-            <Link 
-              href="/sign-in" 
-              className="inline-flex h-12 items-center justify-center rounded-md border border-input bg-background px-6 text-base font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              Sign In
-            </Link>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '1.25rem',
+            maxWidth: '400px',
+            margin: '0 auto'
+          }}>
+            <a href="/onboarding" style={{ 
+              background: 'linear-gradient(45deg, #4F46E5, #2563EB)', 
+              color: 'white', 
+              padding: '1rem 2rem', 
+              borderRadius: '1.5rem', 
+              textDecoration: 'none',
+              fontWeight: '600',
+              fontSize: '1.25rem',
+              boxShadow: '0 4px 10px rgba(59, 130, 246, 0.3)',
+              animation: 'pulse 2s infinite ease-in-out',
+              transform: 'translateZ(0)' // for better animation performance
+            }}>Get Started</a>
+            <a href="/sign-in" style={{ 
+              border: '2px solid #4F46E5', 
+              color: '#4F46E5', 
+              padding: '0.75rem 1.5rem', 
+              borderRadius: '1.5rem', 
+              textDecoration: 'none',
+              fontWeight: '600',
+              fontSize: '1.25rem',
+              transition: 'all 0.2s ease'
+            }}>Sign In</a>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="bg-muted py-16">
-        <div className="container px-4 md:px-6">
-          <h2 className="mb-12 text-center text-3xl font-bold logo-text text-primary">
-            Features that make learning fun
-          </h2>
-          <div className="grid gap-8 md:grid-cols-3">
-            {/* Feature 1 */}
-            <div className="flex flex-col items-center p-6 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <span className="text-3xl">🎮</span>
-              </div>
-              <h3 className="mb-2 text-xl font-bold">Fun Games</h3>
-              <p className="text-muted-foreground">
-                Interactive speech games make practice feel like play!
-              </p>
+      <section style={{ 
+        background: 'linear-gradient(135deg, #EBF5FF 0%, #F9FAFB 50%, #EFF6FF 100%)', 
+        padding: '5rem 0',
+        borderTop: '2px dashed #3B82F6',
+        borderBottom: '2px dashed #3B82F6'
+      }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem'
+        }}>
+          <h2 style={{ 
+            fontSize: '2.5rem', 
+            fontWeight: 'bold', 
+            textAlign: 'center', 
+            marginBottom: '3.5rem',
+            color: '#2563EB',
+            textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)'
+          }}>Features that make learning fun</h2>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '2rem'
+          }}>
+            <div style={{ 
+              backgroundColor: 'white', 
+              borderRadius: '1.5rem', 
+              padding: '2.5rem 1.5rem', 
+              textAlign: 'center',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              border: '2px solid #FFD166',
+              transform: 'rotate(-1deg)'
+            }}>
+              <div style={{ 
+                width: '5rem', 
+                height: '5rem', 
+                backgroundColor: '#FFD166', 
+                borderRadius: '50%', 
+                margin: '0 auto 1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2.5rem',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                animation: 'wiggle 3s infinite ease-in-out'
+              }}>🎮</div>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.75rem', color: '#2563EB' }}>Fun Games</h3>
+              <p style={{ color: '#4B5563', fontSize: '1.1rem' }}>Interactive speech games make practice feel like play!</p>
             </div>
-            {/* Feature 2 */}
-            <div className="flex flex-col items-center p-6 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <span className="text-3xl">🏆</span>
-              </div>
-              <h3 className="mb-2 text-xl font-bold">Progress Tracking</h3>
-              <p className="text-muted-foreground">
-                Watch your child's pronunciation improve over time.
-              </p>
+            <div style={{ 
+              backgroundColor: 'white', 
+              borderRadius: '1.5rem', 
+              padding: '2.5rem 1.5rem', 
+              textAlign: 'center',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              border: '2px solid #06D6A0',
+              transform: 'rotate(1deg)'
+            }}>
+              <div style={{ 
+                width: '5rem', 
+                height: '5rem', 
+                backgroundColor: '#06D6A0', 
+                borderRadius: '50%', 
+                margin: '0 auto 1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2.5rem',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                animation: 'float 3s infinite ease-in-out',
+                animationDelay: '0.2s'
+              }}>🏆</div>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.75rem', color: '#2563EB' }}>Progress Tracking</h3>
+              <p style={{ color: '#4B5563', fontSize: '1.1rem' }}>Watch your child's pronunciation improve over time.</p>
             </div>
-            {/* Feature 3 */}
-            <div className="flex flex-col items-center p-6 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <span className="text-3xl">👂</span>
-              </div>
-              <h3 className="mb-2 text-xl font-bold">Instant Feedback</h3>
-              <p className="text-muted-foreground">
-                Real-time guidance helps improve pronunciation skills.
-              </p>
+            <div style={{ 
+              backgroundColor: 'white', 
+              borderRadius: '1.5rem', 
+              padding: '2.5rem 1.5rem', 
+              textAlign: 'center',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              border: '2px solid #118AB2',
+              transform: 'rotate(-1deg)'
+            }}>
+              <div style={{ 
+                width: '5rem', 
+                height: '5rem', 
+                backgroundColor: '#118AB2', 
+                borderRadius: '50%', 
+                margin: '0 auto 1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2.5rem',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                animation: 'pulse 3s infinite ease-in-out',
+                animationDelay: '0.4s'
+              }}>👂</div>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.75rem', color: '#2563EB' }}>Instant Feedback</h3>
+              <p style={{ color: '#4B5563', fontSize: '1.1rem' }}>Real-time guidance helps improve pronunciation skills.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Testimonial Section */}
-      <section className="py-16">
-        <div className="container px-4 md:px-6">
-          <h2 className="mb-12 text-center text-3xl font-bold logo-text text-primary">
-            What parents are saying
-          </h2>
-          <div className="mx-auto grid max-w-sm gap-8 md:max-w-none md:grid-cols-2 lg:grid-cols-3">
-            {/* Testimonial 1 */}
-            <div className="rounded-lg border bg-card p-6 shadow-sm">
-              <p className="mb-4 text-card-foreground">
+      {/* Testimonials Section */}
+      <section style={{ padding: '5rem 0', backgroundColor: 'white' }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem'
+        }}>
+          <h2 style={{ 
+            fontSize: '2.5rem', 
+            fontWeight: 'bold', 
+            textAlign: 'center', 
+            marginBottom: '3.5rem',
+            color: '#2563EB',
+            textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)'
+          }}>What parents are saying</h2>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '2rem',
+            maxWidth: '1000px',
+            margin: '0 auto'
+          }}>
+            <div style={{ 
+              backgroundColor: '#FFFBEB', 
+              borderRadius: '1.5rem', 
+              padding: '2rem', 
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              border: '2px solid #FFD166',
+              transform: 'rotate(-1deg)'
+            }}>
+              <p style={{ marginBottom: '1.5rem', color: '#4B5563', fontSize: '1.1rem', lineHeight: '1.6' }}>
                 "My son used to struggle with his 'r' sounds. After just a few weeks with Speech Buddy, he's made incredible progress!"
               </p>
-              <p className="font-semibold">- Sarah W., Parent</p>
+              <p style={{ fontWeight: '700', color: '#2563EB' }}>- Sarah W., Parent</p>
             </div>
-            {/* Testimonial 2 */}
-            <div className="rounded-lg border bg-card p-6 shadow-sm">
-              <p className="mb-4 text-card-foreground">
+            <div style={{ 
+              backgroundColor: '#F0FDF4', 
+              borderRadius: '1.5rem', 
+              padding: '2rem', 
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              border: '2px solid #06D6A0',
+              transform: 'rotate(1deg)'
+            }}>
+              <p style={{ marginBottom: '1.5rem', color: '#4B5563', fontSize: '1.1rem', lineHeight: '1.6' }}>
                 "The colorful interface and fun games keep my daughter engaged. She asks to practice every day!"
               </p>
-              <p className="font-semibold">- Michael T., Parent</p>
+              <p style={{ fontWeight: '700', color: '#2563EB' }}>- Michael T., Parent</p>
             </div>
-            {/* Testimonial 3 */}
-            <div className="rounded-lg border bg-card p-6 shadow-sm">
-              <p className="mb-4 text-card-foreground">
+            <div style={{ 
+              backgroundColor: '#EFF6FF', 
+              borderRadius: '1.5rem', 
+              padding: '2rem', 
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+              border: '2px solid #118AB2',
+              transform: 'rotate(-1deg)'
+            }}>
+              <p style={{ marginBottom: '1.5rem', color: '#4B5563', fontSize: '1.1rem', lineHeight: '1.6' }}>
                 "Speech Buddy has been a wonderful supplement to my child's speech therapy. The games reinforce what they learn in sessions."
               </p>
-              <p className="font-semibold">- Lisa K., Parent</p>
+              <p style={{ fontWeight: '700', color: '#2563EB' }}>- Lisa K., Parent</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="bg-primary py-16 text-primary-foreground">
-        <div className="container flex flex-col items-center px-4 text-center md:px-6">
-          <h2 className="text-3xl font-bold logo-text md:text-4xl">
-            Ready to start your speech adventure?
-          </h2>
-          <p className="mt-4 max-w-2xl text-lg">
+      <section style={{ 
+        background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+        padding: '5rem 0', 
+        color: 'white',
+        borderTop: '4px dashed #FFD166',
+        borderBottom: '4px dashed #FFD166'
+      }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ 
+            fontSize: '2.75rem', 
+            fontWeight: 'bold', 
+            marginBottom: '1.5rem',
+            textShadow: '2px 2px 0px rgba(0, 0, 0, 0.2)'
+          }}>Ready to start your speech adventure?</h2>
+          <p style={{ 
+            fontSize: '1.25rem', 
+            marginBottom: '3rem', 
+            maxWidth: '600px',
+            margin: '0 auto 3rem',
+            lineHeight: '1.6',
+            opacity: '0.9'
+          }}>
             Join thousands of families who are helping their children improve their speech in a fun, engaging way.
           </p>
-          <Link 
-            href="/onboarding" 
-            className="mt-8 inline-flex h-12 items-center justify-center rounded-md bg-primary-foreground px-6 text-base font-medium text-primary transition-colors hover:bg-primary-foreground/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Create a Free Account
-          </Link>
+          <a href="/onboarding" style={{ 
+            backgroundColor: 'white', 
+            color: '#3B82F6', 
+            padding: '1rem 2.5rem', 
+            borderRadius: '2rem', 
+            textDecoration: 'none',
+            fontWeight: '700',
+            fontSize: '1.25rem',
+            display: 'inline-block',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)',
+            animation: 'pulse 2s infinite ease-in-out'
+          }}>Create a Free Account</a>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-card py-6">
-        <div className="container flex flex-col items-center gap-4 px-4 text-center md:px-6">
-          <div className="flex h-16 w-16 items-center justify-center">
-            <Image 
-              src="/logo-icon.svg" 
-              alt="Speech Buddy Logo" 
-              width={40} 
-              height={40}
-              className="animate-bounce-gentle"
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            © 2023 Speech Buddy. All rights reserved.
+      <footer style={{ 
+        borderTop: '2px solid #EBF5FF', 
+        padding: '2rem 0',
+        backgroundColor: 'white'
+      }}>
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '1rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ 
+            width: '3rem', 
+            height: '3rem', 
+            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+            borderRadius: '50%', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            animation: 'float 3s infinite ease-in-out'
+          }}>S</div>
+          <p style={{ fontSize: '1rem', color: '#6B7280' }}>
+            Built with ❤️ by the Speech Buddy Team.
+            <a href="#" style={{ 
+              color: '#3B82F6', 
+              marginLeft: '0.5rem', 
+              textDecoration: 'none',
+              fontWeight: '600'
+            }}>GitHub</a>
           </p>
-          <div className="flex gap-4">
-            <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground">
-              Privacy
-            </Link>
-            <Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground">
-              Terms
-            </Link>
-            <Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground">
-              Contact
-            </Link>
+          <div style={{
+            display: 'flex',
+            gap: '1rem',
+            marginTop: '1rem'
+          }}>
+            <span style={{ fontSize: '1.5rem' }}>🎈</span>
+            <span style={{ fontSize: '1.5rem' }}>🎯</span>
+            <span style={{ fontSize: '1.5rem' }}>🎪</span>
+            <span style={{ fontSize: '1.5rem' }}>🎨</span>
           </div>
         </div>
       </footer>
