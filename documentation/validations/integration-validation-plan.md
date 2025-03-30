@@ -52,6 +52,51 @@ This document outlines the validation test plan for Phase 4, Step 4 of the Speec
 - Different focus sounds produce relevant practice phrases
 - Audio controls function as expected
 
+#### 3.1 TTS Sound Type Switching Implementation Notes
+
+During validation testing, an issue was identified where switching between different sound types (R, S, L, Th) failed to correctly generate new audio. The following fixes were implemented:
+
+1. **Audio Element Reference Fix**: 
+   - Updated to reference the state variable `practicePhrases` instead of the static `PRACTICE_PHRASES` array
+   - Added thorough checking of the audio element's source in the play button handler
+   - Fixed detection logic for loaded but paused audio
+
+2. **Audio Resource Clearing**:
+   - Implemented explicit clearing of audio sources when changing phrases
+   - Modified `fetchPracticePhrase` to force audio element reset before fetching new audio
+   - Added `useEffect` dependency tracking to detect phrase changes
+
+3. **Debugging Enhancements**:
+   - Added detailed logging to track audio element state
+   - Implemented phrase focus change detection with console logging
+   - Added validation for sound type mapping
+
+4. **Volume Control Fixes**:
+   - Added immediate volume application when toggling the mute button
+   - Implemented a dedicated `useEffect` hook to monitor volume state changes and apply them to the audio
+   - Updated `playAudioFromResponse` to respect volume settings instead of skipping playback when muted
+   - Added console logging for volume state changes to assist with debugging
+
+5. **Text-Audio Synchronization**:
+   - Fixed an issue where the displayed text didn't match the audio being played
+   - Implemented a two-step API flow:
+     1. First request the generated phrase text from the practice API (`returnText: true` parameter)
+     2. Update the UI display with this text before playing any audio
+     3. Generate and play the TTS audio using exactly the returned text
+   - Enhanced the speech API route to support the `returnText` parameter for different response formats
+   - Modified the `TTSResponse` interface to include the `generatedText` field for tracking
+   - Added a `processAudioResponse` helper function to handle audio blob processing consistently
+   - Implemented proper content-type checking to handle both JSON and audio responses
+   - Added comprehensive logging throughout the process for debugging and traceability
+
+These changes ensure that when navigating between different sound types, the application correctly:
+- Resets the audio state
+- Maps the proper sound type to the API parameter
+- Generates new audio for the selected sound type
+- Provides appropriate loading state feedback
+- Correctly handles mute/unmute actions in real-time
+- Displays the exact text that corresponds to the audio being played
+
 ### 4. ASR Functionality Validation
 
 1. After playing TTS audio, click the record button
@@ -65,6 +110,55 @@ This document outlines the validation test plan for Phase 4, Step 4 of the Speec
 - Analysis results return within acceptable time (<5s)
 - Feedback includes accuracy metrics and improvement suggestions
 - Targeted sound analysis reflects the current exercise focus
+
+#### 4.1 ASR Sound Analysis Enhancement Notes
+
+During validation testing, an issue was identified where the ASR functionality was not accurately detecting mispronunciations for L sounds, consistently providing high accuracy ratings even for incorrect pronunciations. The following improvements were implemented:
+
+1. **Enhanced L Sound Analysis**:
+   - Added specialized detection logic specifically for L sound mispronunciations
+   - Implemented pattern matching for common L sound substitutions (w, y)
+   - Created additional heuristics to identify words that might contain both 'l' and its common substitution 'w'
+   - Added a more conservative accuracy estimation for limited samples
+
+2. **Detailed Logging**:
+   - Added comprehensive logging throughout the analysis process
+   - Included transcript content, detected words with target sounds, and classifications
+   - Logged detailed information about how accuracy percentages are calculated
+
+3. **Feedback Refinement**:
+   - Added an intermediate feedback tier for moderately good pronunciations (70-90% accuracy)
+   - Limited the number of suggested practice words to avoid overwhelming users
+   - Ensured suggestions are more specific to the detected issues
+
+4. **Accuracy Calculation Improvements**:
+   - Implemented a custom accuracy calculation specifically for L sounds
+   - Added safeguards to prevent overly optimistic ratings with small word samples
+   - Created separate code paths for different sound types to allow for specialized analysis
+
+5. **Phrase Comparison Analysis**:
+   - Added a fundamental check to compare what the user actually said against the target phrase
+   - Implemented a sophisticated phrase similarity algorithm that checks:
+     - Word presence (how many words from the target phrase appear in the transcript)
+     - Length differences (penalizing transcripts that are much longer or shorter)
+     - Word order similarity (checking if matched words appear in the same order)
+   - Provided immediate feedback when users speak completely different phrases
+   - Weighted final accuracy scores to account for both sound pronunciation and phrase accuracy
+   - Added specific suggestions to encourage correct phrase repetition
+   - Integrated target phrase comparison in both frontend and API:
+     - Modified `analyzeRecording` in page.tsx to send target text to ASR API
+     - Updated ASR API route to extract and pass targetText to analysis function
+     - Enhanced speech-to-text.ts with `calculatePhraseMatchScore` function (0-100% scale)
+     - Implemented weighted scoring: 60% sound pronunciation, 40% phrase accuracy
+     - Added debugging logs to track phrase matching throughout the process
+     - Changed feedback logic to prioritize phrase repetition accuracy when score < 50%
+
+These changes ensure more accurate and helpful feedback for all sound types, particularly for L sounds that were previously not receiving proper analysis. The feedback system now provides:
+- More realistic accuracy scores based on actual pronunciation
+- Better detection of subtle pronunciation issues
+- More tailored suggestions for improvement
+- Appropriate difficulty progression as skills improve
+- Verification that users are actually repeating the displayed phrase
 
 ### 5. Complete Round-Trip Testing
 
@@ -92,6 +186,7 @@ This document outlines the validation test plan for Phase 4, Step 4 of the Speec
 2. **Silent Recording**: Submit recording with no speech and verify error handling
 3. **Connection Loss**: Simulate network interruption during API calls
 4. **Unsupported Browser/Device**: Test on browser without MediaRecorder support
+5. **Sound Type Switching**: Verify that switching between different sound types (R, S, L, Th) correctly generates new audio
 
 ### Performance Testing
 
