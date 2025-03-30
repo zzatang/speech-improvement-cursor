@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { generatePracticeSpeech } from '@/lib/google/text-to-speech';
+import { generatePracticeSpeech, synthesizeSpeech, formatForTTS } from '@/lib/google/text-to-speech';
 
 /**
  * API endpoint for generating speech practice phrases focused on specific sounds
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
     // Get request parameters
     const body = await request.json();
-    const { sound, difficulty, customText } = body;
+    const { sound, difficulty, customText, returnText } = body;
     
     if (!sound && !customText) {
       return new NextResponse(
@@ -28,12 +28,34 @@ export async function POST(request: Request) {
       );
     }
     
+    console.log(`API: Received request for sound: "${sound}", difficulty: ${difficulty}, customText: ${customText ? 'provided' : 'not provided'}, returnText: ${returnText ? 'true' : 'false'}`);
+    
     // Generate speech - either from a custom text or using the practice generator
-    const response = customText 
-      ? await generatePracticeSpeech('r', 1) // Use the default sound but with custom text
-      : await generatePracticeSpeech(sound, difficulty);
+    let response;
+    let textToReturn;
+    
+    if (customText) {
+      // Format the custom text for better pronunciation
+      const formattedText = formatForTTS(customText);
+      console.log(`API: Using custom text: "${customText}"`);
+      textToReturn = customText;
+      response = await synthesizeSpeech({
+        text: formattedText,
+        childFriendly: true,
+        speakingRate: 0.8  // Slightly slower for better clarity
+      });
+    } else {
+      // Use the practice generator with specified sound and difficulty
+      console.log(`API: Using practice generator for sound: "${sound}", difficulty: ${difficulty}`);
+      
+      // Generate phrase and capture the generated text
+      const { audioContent, generatedText, error } = await generatePracticeSpeech(sound, difficulty);
+      textToReturn = generatedText;
+      response = { audioContent, error };
+    }
     
     if (!response.audioContent) {
+      console.error(`API: Failed to generate speech: ${response.error}`);
       return new NextResponse(
         JSON.stringify({ 
           error: 'Failed to generate speech',
@@ -43,7 +65,25 @@ export async function POST(request: Request) {
       );
     }
     
-    // Return audio content with appropriate headers
+    console.log(`API: Successfully generated speech audio${textToReturn ? ` for text: "${textToReturn}"` : ''}`);
+    
+    // If returnText is true, return the text along with a success message
+    if (returnText && textToReturn) {
+      return new NextResponse(
+        JSON.stringify({
+          success: true,
+          text: textToReturn
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=86400', // Cache for 1 day
+          },
+        }
+      );
+    }
+    
+    // Otherwise, return audio content with appropriate headers
     return new NextResponse(response.audioContent, {
       headers: {
         'Content-Type': 'audio/mpeg',

@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
     let audioContent: Buffer | null = null;
     let targetSound: string | null = null;
     let languageCode: string | null = null;
-
+    let targetText: string | null = null;
+    
     // Check if the request is multipart form data or JSON
     const contentType = request.headers.get('content-type') || '';
 
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest) {
       const audioFile = formData.get('audio') as File | null;
       targetSound = formData.get('targetSound') as string | null;
       languageCode = formData.get('languageCode') as string | null;
+      targetText = formData.get('targetText') as string | null;
 
       if (!audioFile) {
         return NextResponse.json(
@@ -54,6 +56,7 @@ export async function POST(request: NextRequest) {
       audioContent = Buffer.from(body.audioContent, 'base64');
       targetSound = body.targetSound || null;
       languageCode = body.languageCode || null;
+      targetText = body.targetText || null;
     }
 
     if (!audioContent) {
@@ -105,9 +108,14 @@ export async function POST(request: NextRequest) {
 
     // If a target sound was specified, add focused analysis for that sound
     if (targetSound && sttResponse.transcript) {
+      if (targetText) {
+        console.log(`Comparing transcript against target text: "${targetText}"`);
+      }
+      
       response.targetSoundAnalysis = analyzeTargetSound(
         sttResponse.transcript, 
-        targetSound
+        targetSound,
+        targetText || undefined
       );
     }
 

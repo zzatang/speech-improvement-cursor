@@ -8,11 +8,13 @@ export interface TTSRequest {
   speakingRate?: number;
   pitch?: number;
   childFriendly?: boolean;
+  useSsml?: boolean;
 }
 
 export interface TTSResponse {
   audioContent: Uint8Array | null;
   error?: string;
+  generatedText?: string; // The text that was used to generate the audio
 }
 
 // Create a client with Google credentials from environment variables
@@ -46,7 +48,10 @@ export async function synthesizeSpeech(options: TTSRequest): Promise<TTSResponse
     
     // Configure the TTS request
     const request: protos.google.cloud.texttospeech.v1.ISynthesizeSpeechRequest = {
-      input: { text: options.text },
+      // Use ssml or text based on options
+      input: options.useSsml 
+        ? { ssml: options.text } 
+        : { text: options.text },
       voice: {
         name: options.voiceName || defaultVoiceName,
         languageCode: options.languageCode || defaultLanguageCode,
@@ -66,9 +71,14 @@ export async function synthesizeSpeech(options: TTSRequest): Promise<TTSResponse
     // Make the API call
     const [response] = await client.synthesizeSpeech(request);
     
-    return {
-      audioContent: response.audioContent || null
-    };
+    // Convert string to Uint8Array if necessary
+    const audioContent = response.audioContent ? 
+      (typeof response.audioContent === 'string' 
+        ? Buffer.from(response.audioContent) 
+        : response.audioContent) 
+      : null;
+    
+    return { audioContent };
   } catch (error) {
     console.error('Error synthesizing speech:', error);
     return {
@@ -83,7 +93,7 @@ export async function synthesizeSpeech(options: TTSRequest): Promise<TTSResponse
  * @param languageCode - Optional language code to filter voices
  * @returns Array of available voices
  */
-export async function getAvailableVoices(languageCode?: string): Promise<protos.google.cloud.texttospeech.v1.Voice[]> {
+export async function getAvailableVoices(languageCode?: string): Promise<any[]> {
   try {
     const client = createTTSClient();
     
@@ -107,14 +117,14 @@ export async function getAvailableVoices(languageCode?: string): Promise<protos.
 export function formatForTTS(text: string): string {
   // Add pause markers at punctuation
   const withPauses = text
-    .replace(/\./g, '. <break time="500ms"/>')
-    .replace(/\,/g, ', <break time="300ms"/>')
-    .replace(/\?/g, '? <break time="500ms"/>')
-    .replace(/\!/g, '! <break time="500ms"/>')
-    .replace(/\:/g, ': <break time="400ms"/>');
+    .replace(/\./g, '.')
+    .replace(/\,/g, ',')
+    .replace(/\?/g, '?')
+    .replace(/\!/g, '!')
+    .replace(/\:/g, ':');
   
-  // Wrap in SSML for better control
-  return `<speak>${withPauses}</speak>`;
+  // Simply return the text - we'll use natural pauses instead of SSML
+  return withPauses;
 }
 
 /**
@@ -160,8 +170,24 @@ export async function generatePracticeSpeech(sound: string, difficulty: number =
     ]
   };
   
-  // Default to 'r' sound if the requested sound isn't available
-  const soundKey = Object.keys(phrases).includes(sound.toLowerCase()) ? sound.toLowerCase() : 'r';
+  // Ensure sound parameter is valid and non-empty
+  const soundKey = sound ? sound.toLowerCase() : '';
+  console.log(`generatePracticeSpeech called with sound: "${soundKey}", difficulty: ${difficulty}`);
+  
+  // Check if sound exists in our phrases dictionary
+  if (!soundKey || !Object.keys(phrases).includes(soundKey)) {
+    console.warn(`Invalid sound type "${soundKey}" requested. Defaulting to "r" sound.`);
+    // Default to 'r' sound if the requested sound isn't available
+    const defaultPhrase = phrases['r'][0][0]; // Use first easy 'r' phrase
+    return synthesizeSpeech({
+      text: formatForTTS(defaultPhrase),
+      childFriendly: true,
+      speakingRate: 0.8
+    }).then(response => ({
+      ...response,
+      generatedText: defaultPhrase
+    }));
+  }
   
   // Ensure difficulty is between 1-3
   const level = Math.min(Math.max(difficulty, 1), 3) - 1;
@@ -170,14 +196,22 @@ export async function generatePracticeSpeech(sound: string, difficulty: number =
   const options = phrases[soundKey][level];
   const selectedPhrase = options[Math.floor(Math.random() * options.length)];
   
-  // Convert to SSML for better speech quality
-  const ssmlText = formatForTTS(selectedPhrase);
+  console.log(`Selected "${soundKey}" phrase: "${selectedPhrase}" (difficulty level: ${level + 1})`);
+  
+  // Use the text without SSML markup
+  const formattedText = formatForTTS(selectedPhrase);
   
   // Generate the speech
-  return synthesizeSpeech({
-    text: ssmlText,
+  const response = await synthesizeSpeech({
+    text: formattedText,
     childFriendly: true,
     // Slightly slower speech for practice
     speakingRate: 0.8 - (level * 0.1) // Slow down for harder levels
   });
+  
+  // Return the response with the generated text
+  return {
+    ...response,
+    generatedText: selectedPhrase
+  };
 } 
