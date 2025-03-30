@@ -369,237 +369,577 @@ export default function ReadingPracticePage() {
   };
   
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Hidden audio element for potential TTS */}
-      <audio ref={audioRef} className="hidden" />
+    <div style={{
+      display: 'flex',
+      minHeight: '100vh',
+      flexDirection: 'column',
+      backgroundColor: '#fff',
+      fontFamily: "'Comic Neue', 'Comic Sans MS', 'Arial', sans-serif",
+      color: '#333',
+      background: 'linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%)'
+    }}>
+      {/* Animation Keyframes */}
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        @keyframes wiggle {
+          0%, 100% { transform: rotate(-3deg); }
+          50% { transform: rotate(3deg); }
+        }
+        @keyframes recording-pulse {
+          0%, 100% { transform: scale(1); background-color: #EF476F; }
+          50% { transform: scale(1.05); background-color: #FF6B6B; }
+        }
+      `}</style>
       
+      {/* Hide audio element */}
+      <audio ref={audioRef} className="hidden" />
+
       {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              <Image 
-                src="/logo-icon.svg" 
-                alt="Speech Buddy" 
-                width={24} 
-                height={24}
-                className="animate-pulse-soft"
-              />
-              <span className="font-medium">Dashboard</span>
+      <header style={{
+        borderBottom: '2px solid #FFD166',
+        backgroundColor: 'white',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.05)'
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'flex',
+          height: '4.5rem',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 1rem'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem'
+          }}>
+            <Link href="/dashboard" style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              textDecoration: 'none',
+              color: '#2563EB'
+            }}>
+              <ArrowLeft style={{ 
+                width: '1.25rem', 
+                height: '1.25rem'
+              }} />
+              <span style={{ 
+                fontWeight: '600',
+                fontSize: '1rem'
+              }}>Back to Dashboard</span>
             </Link>
           </div>
+          
           <UserButton afterSignOutUrl="/" />
         </div>
       </header>
-      
+
       {/* Main Content */}
-      <main className="container max-w-3xl flex-1 px-4 py-8">
-        <div className="space-y-6">
-          {/* Exercise Header */}
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-primary">Reading Practice</h1>
-            <p className="text-muted-foreground">
-              Read along with the highlighted words at your own pace. Practice your pronunciation and fluency!
-            </p>
-          </div>
-          
-          {/* Reading Card */}
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-primary/10">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
+      <main style={{
+        flex: '1',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '2rem 1rem'
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: '800px',
+          marginBottom: '2rem',
+          textAlign: 'center'
+        }}>
+          <h1 style={{
+            fontSize: '2.5rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            color: '#2563EB',
+            textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)'
+          }}>
+            Reading Practice
+          </h1>
+          <p style={{
+            fontSize: '1.25rem',
+            color: '#4B5563',
+            maxWidth: '600px',
+            margin: '0 auto',
+            lineHeight: '1.6'
+          }}>
+            Read along with the highlighted words at your own pace. Practice your pronunciation and fluency!
+          </p>
+        </div>
+        
+        {/* Reading Card */}
+        <div style={{
+          width: '100%',
+          maxWidth: '800px',
+          borderRadius: '1.5rem',
+          border: '2px solid #FFD166',
+          backgroundColor: 'white',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+          overflow: 'hidden',
+          transform: 'rotate(0.5deg)'
+        }}>
+          {/* Card Header */}
+          <div style={{
+            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)',
+            color: 'white',
+            padding: '1.5rem 2rem',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <h2 style={{
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  marginBottom: '0.5rem',
+                  textShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)'
+                }}>
                   {currentText.title}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => setShowSettings(!showSettings)}
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm font-medium">
-                    {currentText.focus} - {currentText.difficulty}
-                  </span>
-                </div>
+                </h2>
+                <p style={{
+                  fontSize: '1rem',
+                  opacity: '0.9'
+                }}>
+                  {currentText.focus} - {currentText.difficulty}
+                </p>
               </div>
-            </CardHeader>
-            
-            <CardContent className="p-6">
-              {/* Settings Panel */}
-              {showSettings && (
-                <div className="mb-6 rounded-lg border bg-card p-4 shadow-sm">
-                  <h3 className="mb-4 font-medium">Reading Settings</h3>
-                  
-                  <div className="space-y-4">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="wpm" className="flex items-center gap-2">
-                          <Timer className="h-4 w-4" />
-                          <span>Reading Speed: {wordsPerMinute} WPM</span>
-                        </Label>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setWordsPerMinute(currentText.targetWordsPerMinute)}
-                          className="h-7 text-xs"
-                        >
-                          Set Recommended ({currentText.targetWordsPerMinute} WPM)
-                        </Button>
-                      </div>
-                      <Slider 
-                        id="wpm"
-                        min={30} 
-                        max={200} 
-                        step={5}
-                        value={[wordsPerMinute]} 
-                        onValueChange={handleSpeedChange}
-                        className="py-2"
-                      />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Slower</span>
-                        <span>Faster</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="pacing-bar"
-                        checked={showPacingBar}
-                        onCheckedChange={setShowPacingBar}
-                      />
-                      <Label htmlFor="pacing-bar">Show Pacing Bar</Label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        id="auto-advance"
-                        checked={autoAdvance}
-                        onCheckedChange={setAutoAdvance}
-                      />
-                      <Label htmlFor="auto-advance">Auto-advance to Next Text</Label>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Pacing Bar */}
-              {showPacingBar && (
-                <div className="mb-4 space-y-1">
-                  <Progress value={progress} className="h-2 w-full" />
-                  <div className="flex justify-between">
-                    <span className="text-xs text-muted-foreground">Start</span>
-                    <span className="text-xs text-muted-foreground">End</span>
-                  </div>
-                </div>
-              )}
-              
-              {/* Reading Text Display */}
-              <div 
-                ref={containerRef}
-                className="rounded-lg bg-muted p-6 text-lg leading-relaxed tracking-wide"
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  width: '2.5rem',
+                  height: '2.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
               >
-                {words.map((word, index) => (
-                  <span 
-                    key={index} 
-                    className={`mr-1 inline-block transition-all duration-200 ${getWordStyle(index)}`}
-                  >
-                    {word}
-                  </span>
-                ))}
+                <Settings style={{ width: '1.25rem', height: '1.25rem', color: 'white' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* Card Content */}
+          <div style={{ padding: '2rem' }}>
+            {/* Settings Panel */}
+            {showSettings && (
+              <div style={{
+                marginBottom: '1.5rem',
+                padding: '1.5rem',
+                backgroundColor: '#F9FAFB',
+                borderRadius: '0.75rem',
+                border: '1px solid #E5E7EB'
+              }}>
+                <h3 style={{
+                  fontSize: '1.25rem',
+                  fontWeight: '600',
+                  marginBottom: '1rem',
+                  color: '#4B5563'
+                }}>Reading Settings</h3>
+                
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem'
+                }}>
+                  <div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        color: '#4B5563'
+                      }}>
+                        <Timer style={{ width: '1rem', height: '1rem' }} />
+                        <span>Reading Speed: {wordsPerMinute} WPM</span>
+                      </label>
+                      <button
+                        onClick={() => setWordsPerMinute(currentText.targetWordsPerMinute)}
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.75rem',
+                          fontWeight: '500',
+                          backgroundColor: 'white',
+                          color: '#3B82F6',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Set Recommended ({currentText.targetWordsPerMinute} WPM)
+                      </button>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="30" 
+                      max="200" 
+                      step="5"
+                      value={wordsPerMinute}
+                      onChange={(e) => handleSpeedChange([parseInt(e.target.value)])}
+                      style={{
+                        width: '100%',
+                        height: '1rem',
+                        accentColor: '#3B82F6',
+                        margin: '0.5rem 0'
+                      }}
+                    />
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '0.75rem',
+                      color: '#6B7280'
+                    }}>
+                      <span>Slower</span>
+                      <span>Faster</span>
+                    </div>
+                  </div>
+                  
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <input
+                      type="checkbox"
+                      id="pacing-bar"
+                      checked={showPacingBar}
+                      onChange={(e) => setShowPacingBar(e.target.checked)}
+                      style={{
+                        width: '1rem',
+                        height: '1rem',
+                        accentColor: '#3B82F6'
+                      }}
+                    />
+                    <label
+                      htmlFor="pacing-bar"
+                      style={{
+                        fontSize: '0.875rem',
+                        color: '#4B5563'
+                      }}
+                    >
+                      Show Pacing Bar
+                    </label>
+                  </div>
+                  
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <input
+                      type="checkbox"
+                      id="auto-advance"
+                      checked={autoAdvance}
+                      onChange={(e) => setAutoAdvance(e.target.checked)}
+                      style={{
+                        width: '1rem',
+                        height: '1rem',
+                        accentColor: '#3B82F6'
+                      }}
+                    />
+                    <label
+                      htmlFor="auto-advance"
+                      style={{
+                        fontSize: '0.875rem',
+                        color: '#4B5563'
+                      }}
+                    >
+                      Auto-advance to Next Text
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pacing Bar */}
+            {showPacingBar && (
+              <div style={{
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{
+                  width: '100%',
+                  height: '0.5rem',
+                  backgroundColor: '#E5E7EB',
+                  borderRadius: '9999px',
+                  overflow: 'hidden'
+                }}>
+                  <div 
+                    style={{
+                      height: '100%',
+                      width: `${progress}%`,
+                      backgroundColor: '#3B82F6',
+                      borderRadius: '9999px',
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '0.75rem',
+                  color: '#6B7280',
+                  marginTop: '0.25rem'
+                }}>
+                  <span>Start</span>
+                  <span>End</span>
+                </div>
+              </div>
+            )}
+
+            {/* Reading Text Display */}
+            <div 
+              ref={containerRef}
+              style={{
+                padding: '1.5rem',
+                backgroundColor: '#F9FAFB',
+                borderRadius: '0.75rem',
+                fontSize: '1.25rem',
+                lineHeight: '1.7',
+                letterSpacing: '0.015em'
+              }}
+            >
+              {words.map((word, index) => (
+                <span 
+                  key={index} 
+                  style={{
+                    display: 'inline-block',
+                    marginRight: '0.25rem',
+                    transition: 'all 0.2s ease',
+                    padding: index === currentWordIndex ? '0.125rem 0.25rem' : '0',
+                    borderRadius: '0.25rem',
+                    backgroundColor: index === currentWordIndex ? '#3B82F6' : 'transparent',
+                    color: index === currentWordIndex 
+                      ? 'white' 
+                      : index < currentWordIndex ? '#9CA3AF' : 'inherit',
+                    animation: index === currentWordIndex ? 'pulse 1s infinite ease-in-out' : 'none'
+                  }}
+                >
+                  {word}
+                </span>
+              ))}
+            </div>
+
+            {/* Controls */}
+            <div style={{
+              marginTop: '2rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1.5rem'
+            }}>
+              <div style={{
+                display: 'flex',
+                gap: '1rem'
+              }}>
+                {/* Play/Pause Button */}
+                <button 
+                  onClick={startReading}
+                  disabled={isRecording}
+                  style={{
+                    width: '4rem',
+                    height: '4rem',
+                    borderRadius: '50%',
+                    backgroundColor: isPlaying ? '#059669' : '#3B82F6',
+                    color: 'white',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: isRecording ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                    opacity: isRecording ? '0.7' : '1',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {isPlaying ? (
+                    <Pause style={{ width: '1.5rem', height: '1.5rem' }} />
+                  ) : (
+                    <Play style={{ width: '1.5rem', height: '1.5rem' }} />
+                  )}
+                </button>
+                
+                {/* Record Button */}
+                <button 
+                  onClick={startRecording}
+                  style={{
+                    width: '4rem',
+                    height: '4rem',
+                    borderRadius: '50%',
+                    backgroundColor: isRecording ? '#EF476F' : '#3B82F6',
+                    color: 'white',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                    animation: isRecording ? 'recording-pulse 1.5s infinite' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Mic style={{ width: '1.5rem', height: '1.5rem' }} />
+                </button>
               </div>
               
-              {/* Controls */}
-              <div className="mt-6 space-y-6">
-                <div className="flex justify-center gap-4">
-                  {/* Play/Pause Button */}
-                  <Button 
-                    onClick={startReading}
-                    disabled={isRecording}
-                    className="h-14 w-14 rounded-full"
-                  >
-                    {isPlaying ? (
-                      <Pause className="h-6 w-6" />
-                    ) : (
-                      <Play className="h-6 w-6" />
-                    )}
-                  </Button>
-                  
-                  {/* Record Button */}
-                  <Button 
-                    onClick={startRecording}
-                    className={`h-14 w-14 rounded-full ${isRecording ? 'bg-destructive hover:bg-destructive/90' : ''}`}
-                  >
-                    <Mic className="h-6 w-6" />
-                  </Button>
-                </div>
-                
-                <div className="text-center text-sm">
-                  <p className="font-medium">
-                    {isPlaying 
-                      ? "Follow along with the highlighted words" 
-                      : "Press play to start"}
-                    {isRecording && " - Recording your voice"}
-                  </p>
-                  <p className="mt-1 text-muted-foreground">
-                    Current pace: {wordsPerMinute} words per minute
-                  </p>
-                </div>
-                
-                {/* Feedback */}
-                {feedback && (
-                  <Alert className="border-primary/20 bg-primary/5">
-                    <AlertDescription className="py-2">
-                      <div className="flex items-start gap-2">
-                        <span className="text-xl">⭐</span>
-                        <p>{feedback}</p>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
+              <div style={{
+                textAlign: 'center',
+                fontSize: '0.875rem'
+              }}>
+                <p style={{
+                  fontWeight: '500',
+                  color: '#4B5563',
+                  marginBottom: '0.25rem'
+                }}>
+                  {isPlaying 
+                    ? "Follow along with the highlighted words" 
+                    : "Press play to start"}
+                  {isRecording && " - Recording your voice"}
+                </p>
+                <p style={{ color: '#6B7280' }}>
+                  Current pace: {wordsPerMinute} words per minute
+                </p>
               </div>
-            </CardContent>
+              
+              {/* Feedback */}
+              {feedback && (
+                <div style={{
+                  width: '100%',
+                  padding: '1rem 1.5rem',
+                  backgroundColor: '#ECFDF5',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #D1FAE5',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem'
+                  }}>
+                    <span style={{ fontSize: '1.25rem' }}>⭐</span>
+                    <p style={{
+                      fontSize: '0.875rem',
+                      color: '#065F46',
+                      margin: 0
+                    }}>{feedback}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card Footer */}
+          <div style={{
+            padding: '1.5rem',
+            borderTop: '1px solid #E5E7EB',
+            display: 'flex',
+            justifyContent: 'space-between'
+          }}>
+            <button
+              onClick={goToPreviousText}
+              disabled={isPlaying || isRecording}
+              style={{
+                padding: '0.75rem 1.25rem',
+                backgroundColor: 'white',
+                color: '#3B82F6',
+                border: '1px solid #D1D5DB',
+                borderRadius: '0.5rem',
+                fontWeight: '500',
+                cursor: (isPlaying || isRecording) ? 'not-allowed' : 'pointer',
+                opacity: (isPlaying || isRecording) ? '0.7' : '1'
+              }}
+            >
+              Previous Text
+            </button>
             
-            <CardFooter className="border-t bg-card p-4">
-              <div className="flex w-full items-center justify-between">
-                <Button
-                  variant="outline"
-                  onClick={goToPreviousText}
-                  disabled={isPlaying || isRecording}
-                >
-                  Previous Text
-                </Button>
-                
-                <Button
-                  onClick={goToNextText}
-                  disabled={isPlaying || isRecording}
-                  className="gap-2"
-                >
-                  Next Text
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
-          
-          {/* Tips Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Reading Practice Tips</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="list-inside list-disc space-y-2">
-                <li>Try to maintain a steady rhythm when reading</li>
-                <li>Pay special attention to the focus sounds in each text</li>
-                <li>Record yourself to hear how you sound</li>
-                <li>Start slower and gradually increase your reading speed</li>
-                <li>Take breaks between texts if you need to</li>
-              </ul>
-            </CardContent>
-          </Card>
+            <button
+              onClick={goToNextText}
+              disabled={isPlaying || isRecording}
+              style={{
+                padding: '0.75rem 1.25rem',
+                backgroundColor: '#3B82F6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.5rem',
+                fontWeight: '500',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: (isPlaying || isRecording) ? 'not-allowed' : 'pointer',
+                opacity: (isPlaying || isRecording) ? '0.7' : '1'
+              }}
+            >
+              Next Text
+              <ChevronRight style={{ width: '1rem', height: '1rem' }} />
+            </button>
+          </div>
+        </div>
+        
+        {/* Tips Section */}
+        <div style={{
+          width: '100%',
+          maxWidth: '800px',
+          marginTop: '2rem',
+          padding: '1.5rem',
+          backgroundColor: 'white',
+          borderRadius: '1rem',
+          border: '2px solid #E5E7EB',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)'
+        }}>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            color: '#4B5563'
+          }}>Reading Practice Tips</h3>
+          <ul style={{
+            paddingLeft: '1.5rem',
+            margin: 0,
+            color: '#4B5563',
+            fontSize: '0.875rem',
+            lineHeight: '1.7'
+          }}>
+            <li>Try to maintain a steady rhythm when reading</li>
+            <li>Pay special attention to the focus sounds in each text</li>
+            <li>Record yourself to hear how you sound</li>
+            <li>Start slower and gradually increase your reading speed</li>
+            <li>Take breaks between texts if you need to</li>
+          </ul>
         </div>
       </main>
+      
+      {/* Footer */}
+      <footer style={{ 
+        borderTop: '1px solid #E5E7EB', 
+        padding: '1.5rem',
+        backgroundColor: 'white',
+        textAlign: 'center',
+        fontSize: '0.875rem',
+        color: '#6B7280'
+      }}>
+        Speech Buddy - Fun Reading Practice for Kids
+      </footer>
     </div>
   );
 } 
