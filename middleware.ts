@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
+import { NextResponse } from "next/server";
 
 /**
  * Enable authentication with Clerk
@@ -29,18 +30,33 @@ const isPublicRoute = createRouteMatcher([
   '/logo-icon.svg',
 ])
 
-export default clerkMiddleware((auth, req) => {
+// Define protected routes that require authentication
+const isProtectedRoute = createRouteMatcher([
+  // Dashboard and user-specific pages
+  '/dashboard(.*)',
+  '/profile(.*)',
+  
+  // Practice areas
+  '/practice(.*)',
+  
+  // Protected API routes - individually listed to avoid regex issues
+  '/api/speech(.*)',
+  '/api/user(.*)',
+  '/api/practice(.*)'
+])
+
+export default clerkMiddleware(async (auth, req) => {
   // Don't run auth checks on public routes
   if (isPublicRoute(req)) {
-    return
+    return;
   }
   
   // For all protected routes, check authentication
-  // This includes:
-  // - /dashboard
-  // - /practice/*
-  // - /api/* (except webhooks)
-  // - All other routes not marked as public
+  if (isProtectedRoute(req)) {
+    // Use the protect method to enforce authentication
+    // This will redirect to sign-in if user is not authenticated
+    await auth.protect();
+  }
 })
 
 export const config = {
