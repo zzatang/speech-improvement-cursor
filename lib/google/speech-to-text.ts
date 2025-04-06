@@ -1,5 +1,7 @@
 import { SpeechClient } from '@google-cloud/speech';
 import { google } from '@google-cloud/speech/build/protos/protos';
+import fs from 'fs';
+import path from 'path';
 
 // Define interface for sound analysis
 interface SoundAnalysis {
@@ -34,6 +36,7 @@ export interface STTResponse {
     endTime: number;
   }>;
   phoneticAnalysis?: PhoneticAnalysis;
+  pronunciationAssessment?: any;
   error?: string;
 }
 
@@ -46,19 +49,35 @@ interface SoundSubstitutions {
   [key: string]: string[];
 }
 
-// Create a client with Google credentials from environment variables
-const createSTTClient = (): SpeechClient => {
-  try {
-    const credentials = JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS || '{}');
-    
-    return new SpeechClient({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-      credentials
-    });
-  } catch (error) {
-    console.error('Error creating STT client:', error);
-    throw new Error('Failed to initialize Google Cloud Speech-to-Text client');
+// Helper function to load credentials manually (Same as in API routes)
+const loadCredentials = () => {
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!credentialsPath) {
+    throw new Error('GOOGLE_APPLICATION_CREDENTIALS environment variable is not set.');
   }
+  const absolutePath = path.resolve(process.cwd(), credentialsPath);
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Credentials file not found at: ${absolutePath}`);
+  }
+  const credentialsFile = fs.readFileSync(absolutePath, 'utf-8');
+  const credentials = JSON.parse(credentialsFile);
+  if (!credentials.client_email || !credentials.private_key || !credentials.project_id) {
+      throw new Error('Credentials file is missing client_email, private_key, or project_id');
+  }
+  return credentials;
+};
+
+// Create a client with manually loaded Google credentials (FIXED version)
+const createSTTClient = () => {
+  const credentials = loadCredentials();
+  // Explicitly pass essential credentials
+  return new SpeechClient({
+    credentials: {
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    },
+    projectId: credentials.project_id
+  });
 };
 
 /**

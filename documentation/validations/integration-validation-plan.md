@@ -52,7 +52,21 @@ This document outlines the validation test plan for Phase 4, Step 4 of the Speec
 - Different focus sounds produce relevant practice phrases
 - Audio controls function as expected
 
-#### 3.1 TTS Sound Type Switching Implementation Notes
+#### 3.1 TTS Google Cloud Authentication Fix Notes
+
+During validation testing, a persistent authentication error ("The incoming JSON object does not contain a client_email field") occurred when attempting to generate TTS audio. This indicated a problem with how the Google Cloud client libraries were loading service account credentials within the Next.js server environment.
+
+The issue was resolved by:
+1.  Moving the Google Cloud service account JSON credentials from the `.env.local` file into a dedicated `google-credentials.json` file in the project root.
+2.  Updating the `.env.local` file to set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the *path* of this new JSON file (e.g., `./google-credentials.json`).
+3.  Modifying the client initialization logic within the relevant library files (`lib/google/text-to-speech.ts` and `lib/google/speech-to-text.ts`). Instead of relying on the library's potentially problematic automatic credential discovery, the code now:
+    *   Explicitly reads the credentials file using Node.js `fs` and `path` modules, resolving the path from `GOOGLE_APPLICATION_CREDENTIALS`.
+    *   Parses the JSON credentials.
+    *   Passes the essential `client_email`, `private_key`, and `project_id` directly to the `TextToSpeechClient` and `SpeechClient` constructors.
+
+This ensures correct authentication by bypassing potential conflicts between the Google Cloud libraries and the Next.js server-side environment's handling of environment variables and file paths.
+
+#### 3.2 TTS Sound Type Switching Implementation Notes
 
 During validation testing, an issue was identified where switching between different sound types (R, S, L, Th) failed to correctly generate new audio. The following fixes were implemented:
 

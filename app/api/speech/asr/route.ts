@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { transcribeSpeech, analyzeTargetSound } from '@/lib/google/speech-to-text';
+// We don't need fs or path here anymore
+// import fs from 'fs';
+// import path from 'path';
+// import { analyzePhonetics } from '@/lib/google/speech-to-text';
+import { transcribeSpeech } from '@/lib/google/speech-to-text';
+
+// Remove unused helper functions
+/*
+const loadCredentials = () => { ... };
+const createASRClient = () => { ... };
+*/
+
+// Remove unused configurations
+/*
+interface ASRConfig { ... }
+const pronunciationAssessmentConfig = { ... };
+*/
 
 /**
  * API endpoint for speech recognition and phonetic analysis
@@ -8,126 +24,54 @@ import { transcribeSpeech, analyzeTargetSound } from '@/lib/google/speech-to-tex
  */
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
 
-    // Get request data - either form data with audio file or direct audio content
-    let audioContent: Buffer | null = null;
-    let targetSound: string | null = null;
-    let languageCode: string | null = null;
-    let targetText: string | null = null;
-    
-    // Check if the request is multipart form data or JSON
-    const contentType = request.headers.get('content-type') || '';
+    const formData = await request.formData();
+    const audioBlob = formData.get('audio') as Blob;
+    // Get languageCode if provided, otherwise use default
+    const languageCode = formData.get('languageCode') as string || process.env.GOOGLE_STT_LANGUAGE_CODE || 'en-AU';
+    // Optionally get targetText if your transcribeSpeech needs it for assessment
+    // const targetText = formData.get('targetText') as string | null; // Keep commented unless needed by transcribeSpeech
 
-    if (contentType.includes('multipart/form-data')) {
-      // Handle form data - audio file upload
-      const formData = await request.formData();
-      const audioFile = formData.get('audio') as File | null;
-      targetSound = formData.get('targetSound') as string | null;
-      languageCode = formData.get('languageCode') as string | null;
-      targetText = formData.get('targetText') as string | null;
-
-      if (!audioFile) {
-        return NextResponse.json(
-          { error: 'Audio file is required' },
-          { status: 400 }
-        );
-      }
-
-      // Convert File to Buffer
-      const arrayBuffer = await audioFile.arrayBuffer();
-      audioContent = Buffer.from(arrayBuffer);
-    } else {
-      // Handle JSON request with audio content as base64
-      const body = await request.json();
-      
-      if (!body.audioContent) {
-        return NextResponse.json(
-          { error: 'Audio content is required' },
-          { status: 400 }
-        );
-      }
-
-      // Convert base64 to Buffer
-      audioContent = Buffer.from(body.audioContent, 'base64');
-      targetSound = body.targetSound || null;
-      languageCode = body.languageCode || null;
-      targetText = body.targetText || null;
+    if (!audioBlob) {
+       return new NextResponse(JSON.stringify({ error: 'Audio data is required' }), { status: 400 });
     }
 
-    if (!audioContent) {
-      return NextResponse.json(
-        { error: 'Audio content could not be processed' },
-        { status: 400 }
-      );
-    }
+    const audioBytes = Buffer.from(await audioBlob.arrayBuffer());
 
-    // Process audio with Google Cloud Speech-to-Text
+    // Call the library function
+    // Pass only the necessary options required by transcribeSpeech
     const sttResponse = await transcribeSpeech({
-      audioContent,
-      languageCode: languageCode || undefined,
-      enableAutomaticPunctuation: true,
-      enableWordTimeOffsets: true,
-    });
+        audioContent: audioBytes, 
+        languageCode: languageCode, 
+        enableWordTimeOffsets: true, // Example: Assuming these are needed
+        enableAutomaticPunctuation: true, // Example: Assuming these are needed
+        // Add targetText ONLY if transcribeSpeech is designed to use it
+        // targetText: targetText 
+    }); 
 
-    // Check for errors
+    // Check for errors returned by transcribeSpeech
     if (sttResponse.error) {
-      return NextResponse.json(
-        { 
-          error: 'Speech recognition failed',
-          details: sttResponse.error
-        },
-        { status: 500 }
+      console.error('ASR Error from transcribeSpeech:', sttResponse.error);
+      return new NextResponse(
+        JSON.stringify({ error: 'Failed to process speech', details: sttResponse.error }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    // If transcription is empty
-    if (!sttResponse.transcript) {
-      return NextResponse.json({
-        transcript: '',
-        message: 'No speech detected. Please try speaking more clearly or checking your microphone.',
-        confidence: 0,
-      });
-    }
+    // Return the entire response object from transcribeSpeech
+    return NextResponse.json(sttResponse);
 
-    // Prepare the response
-    const response: any = {
-      transcript: sttResponse.transcript,
-      confidence: sttResponse.confidence,
-      phoneticAnalysis: sttResponse.phoneticAnalysis
-    };
-
-    // Add word timings if available
-    if (sttResponse.wordTimings) {
-      response.wordTimings = sttResponse.wordTimings;
-    }
-
-    // If a target sound was specified, add focused analysis for that sound
-    if (targetSound && sttResponse.transcript) {
-      if (targetText) {
-        console.log(`Comparing transcript against target text: "${targetText}"`);
-      }
-      
-      response.targetSoundAnalysis = analyzeTargetSound(
-        sttResponse.transcript, 
-        targetSound,
-        targetText || undefined
-      );
-    }
-
-    return NextResponse.json(response);
   } catch (error) {
-    console.error('ASR API Error:', error);
-    return NextResponse.json(
-      { 
-        error: 'Failed to process speech',
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
+    console.error('ASR API Route Error:', error);
+    const errorDetails = error instanceof Error ? error.message + (error.stack ? `\n${error.stack}` : '') : 'Unknown error';
+    console.error('ASR Route Error Details:', errorDetails);
+    return new NextResponse(
+      JSON.stringify({ error: 'Failed to process speech request', details: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 }

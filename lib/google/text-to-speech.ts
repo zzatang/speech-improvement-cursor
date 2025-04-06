@@ -1,4 +1,6 @@
 import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech';
+import fs from 'fs';
+import path from 'path';
 
 // Define types for TTS requests
 export interface TTSRequest {
@@ -17,19 +19,35 @@ export interface TTSResponse {
   generatedText?: string; // The text that was used to generate the audio
 }
 
-// Create a client with Google credentials from environment variables
-const createTTSClient = (): TextToSpeechClient => {
-  try {
-    const credentials = JSON.parse(process.env.GOOGLE_CLOUD_CREDENTIALS || '{}');
-    
-    return new TextToSpeechClient({
-      projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
-      credentials
-    });
-  } catch (error) {
-    console.error('Error creating TTS client:', error);
-    throw new Error('Failed to initialize Google Cloud Text-to-Speech client');
+// Helper function to load credentials manually
+const loadCredentials = () => {
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!credentialsPath) {
+    throw new Error('GOOGLE_APPLICATION_CREDENTIALS environment variable is not set.');
   }
+  const absolutePath = path.resolve(process.cwd(), credentialsPath);
+  if (!fs.existsSync(absolutePath)) {
+    throw new Error(`Credentials file not found at: ${absolutePath}`);
+  }
+  const credentialsFile = fs.readFileSync(absolutePath, 'utf-8');
+  const credentials = JSON.parse(credentialsFile);
+  if (!credentials.client_email || !credentials.private_key || !credentials.project_id) {
+      throw new Error('Credentials file is missing client_email, private_key, or project_id');
+  }
+  return credentials;
+};
+
+// Create a client with manually loaded Google credentials
+const createTTSClient = () => {
+  const credentials = loadCredentials();
+  // Explicitly pass essential credentials
+  return new TextToSpeechClient({
+    credentials: {
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    },
+    projectId: credentials.project_id
+  });
 };
 
 /**
