@@ -21,6 +21,7 @@ export interface Database {
           avatar_accessories: string[] | null
           streak_count: number
           last_login: string | null
+          overall_progress: number | null
         }
         Insert: {
           id?: string
@@ -33,6 +34,7 @@ export interface Database {
           avatar_accessories?: string[] | null
           streak_count?: number
           last_login?: string | null
+          overall_progress?: number | null
         }
         Update: {
           id?: string
@@ -45,6 +47,7 @@ export interface Database {
           avatar_accessories?: string[] | null
           streak_count?: number
           last_login?: string | null
+          overall_progress?: number | null
         }
       }
       speech_exercises: {
@@ -88,7 +91,7 @@ export interface Database {
           created_at: string
           updated_at: string
           user_id: string
-          exercise_id: string
+          exercise_id: string  // UUID in DB, but string in TypeScript
           completed_at: string | null
           score: number | null
           attempts: number
@@ -99,7 +102,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           user_id: string
-          exercise_id: string
+          exercise_id: string  // UUID in DB, but string in TypeScript
           completed_at?: string | null
           score?: number | null
           attempts?: number
@@ -110,7 +113,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
           user_id?: string
-          exercise_id?: string
+          exercise_id?: string  // UUID in DB, but string in TypeScript
           completed_at?: string | null
           score?: number | null
           attempts?: number

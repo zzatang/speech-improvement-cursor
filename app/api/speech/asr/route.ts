@@ -31,10 +31,8 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const audioBlob = formData.get('audio') as Blob;
-    // Get languageCode if provided, otherwise use default
     const languageCode = formData.get('languageCode') as string || process.env.GOOGLE_STT_LANGUAGE_CODE || 'en-AU';
-    // Optionally get targetText if your transcribeSpeech needs it for assessment
-    // const targetText = formData.get('targetText') as string | null; // Keep commented unless needed by transcribeSpeech
+    const targetText = formData.get('targetText') as string | null;
 
     if (!audioBlob) {
        return new NextResponse(JSON.stringify({ error: 'Audio data is required' }), { status: 400 });
@@ -42,15 +40,14 @@ export async function POST(request: NextRequest) {
 
     const audioBytes = Buffer.from(await audioBlob.arrayBuffer());
 
-    // Call the library function
-    // Pass only the necessary options required by transcribeSpeech
+    // Call the library function, passing targetText
     const sttResponse = await transcribeSpeech({
         audioContent: audioBytes, 
         languageCode: languageCode, 
-        enableWordTimeOffsets: true, // Example: Assuming these are needed
-        enableAutomaticPunctuation: true, // Example: Assuming these are needed
-        // Add targetText ONLY if transcribeSpeech is designed to use it
-        // targetText: targetText 
+        enableWordTimeOffsets: true, 
+        enableAutomaticPunctuation: true,
+        // Pass targetText so transcribeSpeech can configure assessment
+        targetText: targetText || undefined 
     }); 
 
     // Check for errors returned by transcribeSpeech

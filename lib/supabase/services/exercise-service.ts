@@ -2,22 +2,22 @@ import { supabase, safeSupabaseCall } from '../client';
 import { SpeechExercise, UserProgress } from '../types';
 
 /**
- * Gets all speech exercises
+ * Get all speech exercises
  */
 export async function getAllExercises() {
   return safeSupabaseCall<SpeechExercise[]>(async () => {
     const { data, error } = await supabase
       .from('speech_exercises')
       .select('*')
-      .order('difficulty_level', { ascending: true });
-
+      .order('created_at', { ascending: false });
+    
     if (error) throw error;
     return { data, error: null };
   });
 }
 
 /**
- * Gets a speech exercise by ID
+ * Get a specific exercise by ID
  */
 export async function getExerciseById(id: string) {
   return safeSupabaseCall<SpeechExercise>(async () => {
@@ -26,23 +26,69 @@ export async function getExerciseById(id: string) {
       .select('*')
       .eq('id', id)
       .single();
-
+    
     if (error) throw error;
     return { data, error: null };
   });
 }
 
 /**
- * Gets speech exercises by type
+ * Save (create or update) an exercise
  */
-export async function getExercisesByType(exerciseType: string) {
+export async function saveExercise(exercise: SpeechExercise) {
+  return safeSupabaseCall<SpeechExercise>(async () => {
+    // If exercise has an ID, update it
+    if (exercise.id) {
+      const { data, error } = await supabase
+        .from('speech_exercises')
+        .update(exercise)
+        .eq('id', exercise.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return { data, error: null };
+    } 
+    // Otherwise create a new exercise
+    else {
+      const { data, error } = await supabase
+        .from('speech_exercises')
+        .insert(exercise)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return { data, error: null };
+    }
+  });
+}
+
+/**
+ * Delete an exercise by ID
+ */
+export async function deleteExercise(id: string) {
+  return safeSupabaseCall<null>(async () => {
+    const { error } = await supabase
+      .from('speech_exercises')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    return { data: null, error: null };
+  });
+}
+
+/**
+ * Get exercises by type (repeat or reading)
+ */
+export async function getExercisesByType(type: string) {
   return safeSupabaseCall<SpeechExercise[]>(async () => {
     const { data, error } = await supabase
       .from('speech_exercises')
       .select('*')
-      .eq('exercise_type', exerciseType)
+      .eq('exercise_type', type)
       .order('difficulty_level', { ascending: true });
-
+    
     if (error) throw error;
     return { data, error: null };
   });

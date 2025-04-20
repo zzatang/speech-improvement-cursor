@@ -19,6 +19,7 @@ export interface STTRequest {
   enableWordTimeOffsets?: boolean;
   model?: string;
   singleUtterance?: boolean;
+  targetText?: string;
 }
 
 export interface PhoneticAnalysis {
@@ -71,7 +72,7 @@ const loadCredentials = () => {
 const createSTTClient = () => {
   const credentials = loadCredentials();
   // Explicitly pass essential credentials
-  return new SpeechClient({
+    return new SpeechClient({
     credentials: {
       client_email: credentials.client_email,
       private_key: credentials.private_key,
@@ -89,9 +90,8 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
   try {
     const client = createSTTClient();
     
-    // Default configuration for Australian accent speech recognition
+    // Default configuration values
     const defaultLanguageCode = process.env.GOOGLE_STT_LANGUAGE_CODE || 'en-AU';
-    const defaultModel = process.env.GOOGLE_STT_MODEL || 'command_and_search';
     const defaultEnablePunctuation = process.env.GOOGLE_STT_ENABLE_AUTOMATIC_PUNCTUATION === 'true';
     const defaultEnableWordTimings = process.env.GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS === 'true';
     
@@ -99,14 +99,22 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
     const request: google.cloud.speech.v1.IRecognizeRequest = {
       config: {
         languageCode: options.languageCode || defaultLanguageCode,
-        model: options.model || defaultModel,
+        encoding: 'WEBM_OPUS',
         enableAutomaticPunctuation: options.enableAutomaticPunctuation !== undefined 
           ? options.enableAutomaticPunctuation 
           : defaultEnablePunctuation,
         enableWordTimeOffsets: options.enableWordTimeOffsets !== undefined 
           ? options.enableWordTimeOffsets 
           : defaultEnableWordTimings,
-      },
+        features: options.targetText ? {
+          pronunciationAssessment: {
+            referenceText: options.targetText,
+            gradingSystem: '100POINT_GRADING_SYSTEM',
+            granularity: 'PHONEME',
+            dimension: 'ALL'
+          }
+        } : undefined 
+      } as any,
       audio: {
         content: options.audioContent instanceof Buffer 
           ? options.audioContent.toString('base64')
@@ -116,7 +124,7 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
     
     // Make the API call
     const [response] = await client.recognize(request);
-    
+
     // Check if we have results
     if (!response.results || response.results.length === 0) {
       return {
@@ -138,6 +146,9 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
       };
     }
     
+    // Extract pronunciation assessment with type assertion
+    const pronunciationAssessment = (alternative as any).pronunciationAssessment;
+    
     // Format word timings if available
     const wordTimings = alternative.words?.map(word => ({
       word: word.word || '',
@@ -145,10 +156,11 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
       endTime: typeof word.endTime?.seconds === 'number' ? word.endTime.seconds : 0
     }));
     
-    // Create response object
+    // Create response object, including assessment
     const sttResponse: STTResponse = {
       transcript: alternative.transcript || '',
-      confidence: alternative.confidence || 0
+      confidence: alternative.confidence || 0,
+      pronunciationAssessment: pronunciationAssessment // Assign the assessment result
     };
     
     // Add word timings if available
@@ -157,8 +169,16 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
     }
     
     // Add phonetic analysis if transcript is not empty
-    if (sttResponse.transcript) {
-      sttResponse.phoneticAnalysis = analyzePhonetics(sttResponse.transcript);
+    if (sttResponse.transcript && pronunciationAssessment) {
+      // Pass the assessment score object to analyzePhonetics
+      sttResponse.phoneticAnalysis = analyzePhonetics(pronunciationAssessment);
+    } else if (sttResponse.transcript) {
+      // Basic analysis if no assessment score (might need refinement)
+      sttResponse.phoneticAnalysis = {
+        sounds: {},
+        overallScore: 50, // Placeholder
+        suggestions: ["Pronunciation details unavailable."]
+      };
     }
     
     return sttResponse;
@@ -174,120 +194,41 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
 
 /**
  * Analyzes speech for common phonetic issues in children with speech impediments
- * @param transcript - The transcribed text to analyze
+ * @param pronunciationAssessment - The pronunciation assessment object from Google API
  * @returns Analysis of phonetic accuracy and areas for improvement
  */
-function analyzePhonetics(transcript: string): PhoneticAnalysis {
-  const text = transcript.toLowerCase();
-  
-  // Initialize sounds to analyze
-  const sounds: Record<string, SoundAnalysis> = {
-    'r': { correct: 0, total: 0, percentage: 0, problematic: [] },
-    's': { correct: 0, total: 0, percentage: 0, problematic: [] },
-    'th': { correct: 0, total: 0, percentage: 0, problematic: [] },
-    'l': { correct: 0, total: 0, percentage: 0, problematic: [] }
-  };
-  
-  // Word patterns for detection
-  const patterns: Record<string, RegExp> = {
-    'r': /\b\w*r\w*\b/g,
-    's': /\b\w*s\w*\b/g,
-    'th': /\b\w*th\w*\b/g,
-    'l': /\b\w*l\w*\b/g
-  };
-  
-  // Common substitutions children make
-  const substitutions: SoundSubstitutions = {
-    'r': ['w'],
-    's': ['th'],
-    'th': ['f', 'd'],
-    'l': ['w', 'y']
-  };
-  
-  // List of words in the transcript
-  const words = text.split(/\s+/);
-  
-  // Analyze each sound
-  Object.entries(patterns).forEach(([sound, pattern]) => {
-    // Find all words that should contain this sound
-    const matchedWords = words.filter(word => word.match(pattern));
-    sounds[sound].total = matchedWords.length;
-    
-    // Check for potential mispronunciations based on common substitutions
-    matchedWords.forEach(word => {
-      let potentiallyMispronounced = false;
-      
-      // Check if the word might contain a common substitution for this sound
-      if (substitutions[sound]) {
-        substitutions[sound].forEach(sub => {
-          if (word.includes(sub)) {
-            potentiallyMispronounced = true;
-            sounds[sound].problematic.push(word);
-          }
-        });
+function analyzePhonetics(pronunciationAssessment: any): PhoneticAnalysis {
+  const overallScore = pronunciationAssessment?.pronunciationScore;
+
+  let suggestions: string[] = [];
+  let calculatedScore = 50; // Default score if extraction fails
+
+  if (typeof overallScore === 'number' && overallScore >= 0 && overallScore <= 100) {
+      calculatedScore = Math.round(overallScore);
+      // Generate suggestions based on the actual score
+      if (calculatedScore >= 90) {
+          suggestions.push("Excellent pronunciation!");
+      } else if (calculatedScore >= 70) {
+          suggestions.push("Good pronunciation, keep practicing clarity.");
+      } else {
+          suggestions.push("Focus on clearer pronunciation of each word.");
       }
-      
-      // If not flagged as mispronounced, count as correct
-      if (!potentiallyMispronounced) {
-        sounds[sound].correct++;
-      }
-    });
-    
-    // Calculate accuracy percentage
-    sounds[sound].percentage = sounds[sound].total > 0 
-      ? Math.round((sounds[sound].correct / sounds[sound].total) * 100) 
-      : 100;
-  });
-  
-  // Calculate overall score (weighted average)
-  let totalSounds = 0;
-  let correctSounds = 0;
-  
-  Object.values(sounds).forEach(sound => {
-    totalSounds += sound.total;
-    correctSounds += sound.correct;
-  });
-  
-  const overallScore = totalSounds > 0 
-    ? Math.round((correctSounds / totalSounds) * 100) 
-    : 100;
-  
-  // Generate suggestions based on problematic sounds
-  const suggestions: string[] = [];
-  
-  Object.entries(sounds).forEach(([sound, data]) => {
-    if (data.percentage < 70 && data.total > 0) {
-      const suggestionTemplate = getSuggestionTemplate(sound);
-      suggestions.push(suggestionTemplate);
-    }
-  });
-  
-  // Add a general suggestion for good performance
-  if (suggestions.length === 0 && overallScore > 80) {
-    suggestions.push("Great job! Your pronunciation is very clear. Keep practicing to maintain your skills.");
+      // TODO: Add more detailed suggestions by analyzing phonemeScores or wordScores 
+      // within the pronunciationAssessment object if needed.
+      // e.g., const phonemeScores = pronunciationAssessment?.phonemes;
+
+  } else {
+      // Handle cases where the score is missing or invalid
+      console.warn("Could not extract valid overall pronunciation score from assessment object.");
+      suggestions.push("Detailed pronunciation analysis unavailable for this recording.");
+      // Keep calculatedScore at default 50
   }
   
   return {
-    sounds,
-    overallScore,
-    suggestions
+    sounds: {}, // Placeholder - phoneme/sound analysis not implemented here yet
+    overallScore: calculatedScore,
+    suggestions: suggestions
   };
-}
-
-/**
- * Gets a suggestion template for improving a specific sound
- * @param sound - The sound that needs improvement
- * @returns A suggestion string
- */
-function getSuggestionTemplate(sound: string): string {
-  const templates: Record<string, string> = {
-    'r': "Try practicing the 'R' sound by placing your tongue near the roof of your mouth and making a growling sound.",
-    's': "For a clearer 'S' sound, try placing the tip of your tongue behind your top teeth and blowing air out gently.",
-    'th': "For the 'TH' sound, place your tongue between your teeth and blow air out while making a soft sound.",
-    'l': "To make the 'L' sound correctly, place the tip of your tongue on the ridge behind your top teeth."
-  };
-  
-  return templates[sound] || `Try practicing words with the '${sound}' sound more carefully.`;
 }
 
 /**
@@ -556,4 +497,20 @@ function calculatePhraseMatchScore(transcribed: string, target: string): number 
   
   // Ensure score is between 0-100
   return Math.max(0, Math.min(100, Math.round(finalScore)));
+}
+
+/**
+ * Gets a suggestion template for improving a specific sound
+ * @param sound - The sound that needs improvement
+ * @returns A suggestion string
+ */
+function getSuggestionTemplate(sound: string): string {
+  const templates: Record<string, string> = {
+    'r': "Try practicing the 'R' sound by placing your tongue near the roof of your mouth and making a growling sound.",
+    's': "For a clearer 'S' sound, try placing the tip of your tongue behind your top teeth and blowing air out gently.",
+    'th': "For the 'TH' sound, place your tongue between your teeth and blow air out while making a soft sound.",
+    'l': "To make the 'L' sound correctly, place the tip of your tongue on the ridge behind your top teeth."
+  };
+  
+  return templates[sound] || `Try practicing words with the '${sound}' sound more carefully.`;
 } 

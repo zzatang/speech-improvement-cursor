@@ -39,6 +39,9 @@ const isProtectedRoute = createRouteMatcher([
   // Practice areas
   '/practice(.*)',
   
+  // Admin area (protect all /admin routes)
+  '/admin(.*)',
+  
   // Protected API routes - individually listed to avoid regex issues
   '/api/speech(.*)',
   '/api/user(.*)',

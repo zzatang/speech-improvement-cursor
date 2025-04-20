@@ -22,12 +22,24 @@ import {
   VolumeX, 
   ChevronRight,
   Settings,
-  Timer
+  Timer,
+  Headphones,
+  Loader2,
+  Trophy,
+  RepeatIcon,
+  RefreshCw,
+  Square
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  getUserProfile, 
+  upsertUserProfile, 
+  updateUserProfile,
+  updateStreakCount
+} from '@/lib/supabase/services/user-service';
 
 // Sample reading texts for practice (would be fetched from API in production)
 const READING_TEXTS = [
@@ -65,308 +77,387 @@ const READING_TEXTS = [
   }
 ];
 
+// Add this interface after the READING_TEXTS array
+interface FeedbackData {
+  message: string;
+  score: number;
+  transcript: string;
+  suggestions: string[];
+}
+
 export default function ReadingPracticePage() {
-  // State for the current exercise
+  // State cleaned of visual pacing vars
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentWordIndex, setCurrentWordIndex] = useState(-1);
-  const [wordsPerMinute, setWordsPerMinute] = useState(60);
-  const [showPacingBar, setShowPacingBar] = useState(true);
   const [volume, setVolume] = useState(true);
-  const [progress, setProgress] = useState(0);
+  const [volumeLevel, setVolumeLevel] = useState(0.7);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackData | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false); 
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false); 
   
-  // References
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // Refs cleaned of timerRef
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   
   const currentText = READING_TEXTS[currentTextIndex];
-  const words = currentText.text.split(" ");
+  // const words = currentText.text.split(" "); // No longer needed for highlighting
   
-  // Calculate word timing based on words per minute
-  const wordInterval = 60000 / wordsPerMinute; // milliseconds per word
-  
-  // Function to start the reading exercise
-  const startReading = () => {
-    if (isPlaying) {
-      pauseReading();
-      return;
-    }
-    
-    setIsPlaying(true);
-    setCurrentWordIndex(0);
-    setProgress(0);
-    
-    // Start the word highlighting timer
-    highlightNextWord();
-  };
-  
-  // Function to highlight words sequentially
-  const highlightNextWord = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-    
-    // If we've reached the end of the text
-    if (currentWordIndex >= words.length - 1) {
-      if (autoAdvance) {
-        // Auto move to the next text
-        setTimeout(() => {
-          goToNextText();
-        }, 1500);
-      } else {
-        setIsPlaying(false);
-        setCurrentWordIndex(-1);
-        
-        // Show feedback
-        setFeedback("Great job! You've completed the reading exercise.");
-      }
-      return;
-    }
-    
-    // Calculate progress percentage
-    const newProgress = ((currentWordIndex + 1) / words.length) * 100;
-    setProgress(newProgress);
-    
-    // Schedule the next word highlight
-    timerRef.current = setTimeout(() => {
-      setCurrentWordIndex(prev => prev + 1);
-      highlightNextWord();
-    }, wordInterval);
-  };
-  
-  // Function to pause the reading exercise
-  const pauseReading = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-    setIsPlaying(false);
-  };
-  
-  // Function to reset the exercise
+  // Functions cleaned of visual pacing logic
   const resetExercise = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
+    // Reset audio state
+    if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = ''; // Clear audio source
     }
-    setIsPlaying(false);
-    setCurrentWordIndex(-1);
-    setProgress(0);
+    setIsPlayingAudio(false);
+    setIsLoadingAudio(false);
+
+    // Reset recording state
     setFeedback(null);
-    
-    // Stop recording if active
     if (isRecording) {
-      stopRecording();
+      stopRecording(); // Make sure recording stops if exercise resets
     }
   };
   
-  // Function to move to the next text
   const goToNextText = () => {
     setCurrentTextIndex(prev => (prev + 1) % READING_TEXTS.length);
     resetExercise();
   };
   
-  // Function to move to the previous text
   const goToPreviousText = () => {
     setCurrentTextIndex(prev => (prev - 1 + READING_TEXTS.length) % READING_TEXTS.length);
     resetExercise();
   };
   
-  // Function to start recording
   const startRecording = async () => {
     if (isRecording) {
       stopRecording();
       return;
     }
-    
+    // Stop any audio playback before recording
+    if (isPlayingAudio && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlayingAudio(false);
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
       
       mediaRecorderRef.current.ondataavailable = (event) => {
+        console.log("[Reading Page] ondataavailable fired. Chunk size:", event.data.size);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
       
       mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        // Create Blob without forcing type - let browser default apply
+        const audioBlob = new Blob(audioChunksRef.current);
         
-        // Send the recording to the ASR API for analysis
+        console.log("[Reading Page] Recorded Audio Blob Type:", audioBlob.type);
+        
         analyzeRecording(audioBlob);
       };
       
-      // Start recording
+      console.log("[Reading Page] Attempting to start recorder...");
       mediaRecorderRef.current.start();
+      console.log("[Reading Page] Recorder started. State:", mediaRecorderRef.current.state);
+      
       setIsRecording(true);
-      
-      // Start the reading exercise automatically when recording starts
-      if (!isPlaying) {
-        startReading();
-      }
-      
     } catch (error) {
-      console.error("Error starting recording:", error);
+      console.error("[Reading Page] Error in startRecording:", error);
     }
   };
   
-  // Function to stop recording
   const stopRecording = () => {
+    console.log("[Reading Page] stopRecording called. Recorder state:", mediaRecorderRef.current?.state);
+    
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      console.log("[Reading Page] Calling mediaRecorder.stop()...");
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      
-      // Stop all tracks on the stream
+      if (mediaRecorderRef.current.stream) { 
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      
-      // Pause the reading exercise
-      pauseReading();
+      }
+    } else {
+        console.log("[Reading Page] stopRecording: Condition not met to call stop(). Ref exists:", !!mediaRecorderRef.current);
     }
   };
   
-  // Function to handle speed change
-  const handleSpeedChange = (value: number[]) => {
-    const newWpm = value[0];
-    setWordsPerMinute(newWpm);
-    
-    // If currently playing, restart with new speed
-    if (isPlaying) {
-      pauseReading();
-      setTimeout(() => {
-        startReading();
-      }, 100);
-    }
-  };
-  
-  // Function to analyze the recorded audio
   const analyzeRecording = async (blob: Blob) => {
     try {
-      setFeedback("Analyzing your reading...");
-      
-      // Create FormData with the audio blob and target parameters
+      setFeedback({
+        message: "Analyzing your reading...",
+        score: 0,
+        transcript: "",
+        suggestions: []
+      });
       const formData = new FormData();
       formData.append('audio', blob, 'reading.wav');
       
-      // Add target sound parameter based on current text focus
       let targetSound = '';
-      if (currentText.focus.includes('P Sound')) {
-        targetSound = 'p';
-      } else if (currentText.focus.includes('S Sound')) {
-        targetSound = 's';
-      } else if (currentText.focus.includes('Th')) {
-        targetSound = 'th';
-      } else if (currentText.focus.includes('Vowel')) {
-        targetSound = 'vowel';
-      }
+      if (currentText.focus.includes('P Sound')) targetSound = 'p';
+      else if (currentText.focus.includes('S Sound')) targetSound = 's';
+      else if (currentText.focus.includes('Th')) targetSound = 'th';
+      else if (currentText.focus.includes('Vowel')) targetSound = 'vowel';
       
-      if (targetSound) {
-        formData.append('targetSound', targetSound);
-      }
-      
-      // Add the current text as target text (for comparison)
+      if (targetSound) formData.append('targetSound', targetSound);
       formData.append('targetText', currentText.text);
-      
-      // Set the language code to Australian English
       formData.append('languageCode', 'en-AU');
       
-      // Make the API call to the ASR endpoint
+      // Get the current user ID from Clerk
+      const { userId } = await fetch('/api/auth').then(res => res.json());
+      if (!userId) {
+        console.error("No user ID found");
+        throw new Error("Authentication required");
+      }
+      
       const response = await fetch('/api/speech/asr', {
         method: 'POST',
         body: formData
       });
       
-      if (!response.ok) {
-        throw new Error(`ASR API responded with status: ${response.status}`);
-      }
-      
+      if (!response.ok) throw new Error(`ASR API failed: ${response.status}`);
       const data = await response.json();
       
-      // Check if we have valid transcription data
-      if (!data.transcript) {
-        setFeedback("We couldn't hear you clearly. Please try speaking louder or move closer to the microphone.");
+      const transcript = data.transcript;
+      if (!transcript) {
+        setFeedback({
+          message: "Couldn't hear clearly. Try speaking louder?",
+          score: 0,
+          transcript: "",
+          suggestions: [
+            "Speak louder and clearer",
+            "Make sure your microphone is working properly",
+            "Try in a quieter environment"
+          ]
+        });
         return;
       }
       
-      // Save the transcription and analysis data
-      const transcription = data.transcript;
+      // Calculate accuracy score based on word matching algorithm
+      // Similar to the one in repeat/page.tsx
+      const calculateAccuracy = (target: string, actual: string): number => {
+        if (!actual) return 0;
+        
+        // Normalize strings for comparison
+        const normalizedTarget = target.toLowerCase().trim();
+        const normalizedActual = actual.toLowerCase().trim();
+        
+        // Simple word-based comparison
+        const targetWords = normalizedTarget.split(/\s+/);
+        const actualWords = normalizedActual.split(/\s+/);
+        
+        let matchedWords = 0;
+        
+        // Count words that appear in both strings
+        actualWords.forEach(word => {
+          if (targetWords.includes(word)) {
+            matchedWords++;
+          }
+        });
+        
+        // Calculate percentage
+        const maxWords = Math.max(targetWords.length, actualWords.length);
+        return Math.round((matchedWords / maxWords) * 100);
+      };
       
-      // Generate feedback based on API response
+      let exerciseScore = 0;
       let feedbackMessage = '';
+      let suggestions: string[] = [];
       
-      // If we have target sound analysis, use that for feedback
-      if (data.targetSoundAnalysis && targetSound) {
-        const analysis = data.targetSoundAnalysis;
-        const accuracy = analysis.accuracy;
-        
-        if (accuracy >= 90) {
-          feedbackMessage = `Excellent reading of "${currentText.title}"! Your ${currentText.focus} pronunciation was very clear (${accuracy}% accuracy). `;
-        } else if (accuracy >= 70) {
-          feedbackMessage = `Good job reading "${currentText.title}"! Your ${currentText.focus} pronunciation was mostly clear (${accuracy}% accuracy). `;
+      // Check if the phoneticAnalysis or targetSoundAnalysis exists
+      if (data.phoneticAnalysis && typeof data.phoneticAnalysis.overallScore === 'number' && data.pronunciationAssessment) { 
+          // This block will likely NOT be hit for en-AU due to missing pronunciationAssessment
+          exerciseScore = data.phoneticAnalysis.overallScore;
+          if (exerciseScore >= 90) {
+            feedbackMessage = `Excellent reading! Pronunciation score: ${exerciseScore}%.`;
+            suggestions = ["Continue practicing to maintain your skills"];
+          }
+          else if (exerciseScore >= 70) {
+            feedbackMessage = `Good job! Pronunciation score: ${exerciseScore}%.`;
+            suggestions = ["Focus on speaking a bit more clearly", "Pay attention to the rhythm of the words"];
+          }
+          else {
+            feedbackMessage = `Nice try! Pronunciation score: ${exerciseScore}%.`;
+            suggestions = ["Try reading slower and more clearly", "Practice each sound separately before putting them together"];
+          }
+          
+          if (data.phoneticAnalysis.suggestions && data.phoneticAnalysis.suggestions.length > 0) {
+              suggestions.unshift(data.phoneticAnalysis.suggestions[0]);
+          }
+      } else if (data.targetSoundAnalysis && targetSound) {
+          // Use target sound analysis if available
+          const analysis = data.targetSoundAnalysis;
+          exerciseScore = analysis.accuracy;
+          
+          if (exerciseScore >= 90) {
+            feedbackMessage = `Excellent reading! Your ${currentText.focus} pronunciation was very clear.`;
+            suggestions = ["Continue practicing to maintain your skills", "Try more challenging texts"];
+          } else if (exerciseScore >= 70) {
+            feedbackMessage = `Good job! Your ${currentText.focus} pronunciation was mostly clear.`;
+            suggestions = ["Focus on sounds that were challenging", "Practice saying the difficult words slowly"];
         } else {
-          feedbackMessage = `Nice attempt with "${currentText.title}"! Your ${currentText.focus} needs a bit more practice (${accuracy}% accuracy). `;
-        }
-        
-        // Add specific word feedback if available
-        if (analysis.incorrectWords.length > 0) {
-          feedbackMessage += `Try to focus on these words: ${analysis.incorrectWords.slice(0, 3).join(', ')}.`;
-        }
-        
-        // Add a tip from the suggestions if available
-        if (analysis.suggestions.length > 0) {
-          feedbackMessage += ` Tip: ${analysis.suggestions[0]}`;
-        }
-      } else if (data.phoneticAnalysis) {
-        // Use general phonetic analysis if target sound analysis isn't available
-        const phoneticAnalysis = data.phoneticAnalysis;
-        feedbackMessage = `Great reading of "${currentText.title}"! Overall pronunciation score: ${phoneticAnalysis.overallScore}%. `;
-        
-        // Add suggestions if available
-        if (phoneticAnalysis.suggestions.length > 0) {
-          feedbackMessage += phoneticAnalysis.suggestions[0];
-        } else {
-          feedbackMessage += `Keep practicing to improve your fluency!`;
+            feedbackMessage = `Nice try! Your ${currentText.focus} needs a bit more practice.`;
+            suggestions = [
+              `Focus on the ${currentText.focus} sounds specifically`,
+              "Try breaking down difficult words into smaller sounds",
+              "Listen to the audio again and repeat after it"
+            ];
         }
       } else {
-        // Fallback to basic feedback
-        feedbackMessage = `Great job reading "${currentText.title}"! Keep practicing to improve your fluency.`;
+        // Fallback for en-AU (or any case where assessment fails)
+        // Calculate accuracy using the word matching algorithm
+        exerciseScore = calculateAccuracy(currentText.text, transcript);
+        
+        if (exerciseScore >= 80) {
+          feedbackMessage = `Excellent reading! I understood your speech very clearly.`;
+          suggestions = [
+            "Detailed pronunciation scoring is not available for this accent.",
+            "Continue practicing with different texts to maintain your skills.",
+            "Try reading with more expression and varying your pace."
+          ];
+        } else if (exerciseScore >= 60) {
+          feedbackMessage = `Good effort! I understood most of what you said.`;
+          suggestions = [
+            "Detailed pronunciation scoring is not available for this accent.",
+            "Try reading a bit slower for better clarity.",
+            "Focus on the words that might have been misunderstood in the transcript."
+          ];
+        } else {
+          feedbackMessage = `Keep practicing! Reading aloud takes time to develop.`;
+          suggestions = [
+            "Detailed pronunciation scoring is not available for this accent.",
+            "Try breaking the text into smaller parts and practice each part.",
+            "Listen to the audio again and pay attention to the rhythm.",
+            "Speak more slowly and enunciate each word clearly."
+          ];
+        }
       }
       
-      setFeedback(feedbackMessage);
+      setFeedback({
+        message: feedbackMessage,
+        score: exerciseScore,
+        transcript: transcript,
+        suggestions: suggestions
+      });
       
+      // Save the user's progress to Supabase
+      try {
+        // Import the saveUserProgress function and user service
+        const { saveUserProgress } = await import('@/lib/supabase/services/exercise-service');
+        
+        // Create a consistent exercise ID format that includes text title and focus
+        const exerciseId = `reading_${currentText.title.toLowerCase().replace(/\s+/g, '_')}_${currentTextIndex}`;
+        
+        console.log(`Saving progress for exercise ID: ${exerciseId}`);
+        
+        // Prepare feedback message for storage
+        const storageFeedbackMsg = `Score: ${exerciseScore}%. Transcript: "${transcript}". ${feedbackMessage}`;
+        
+        // Save the progress
+        const progressResult = await saveUserProgress({
+          user_id: userId,
+          exercise_id: exerciseId,
+          score: exerciseScore,
+          completed_at: new Date().toISOString(),
+          feedback: storageFeedbackMsg,
+          attempts: 1
+        });
+        
+        if (progressResult.error) {
+          console.error("Error saving reading progress:", progressResult.error);
+        } else {
+          console.log("Reading progress saved successfully:", progressResult.data);
+          
+          // Update the user's overall progress using the service function
+          // This will correctly calculate overall progress based on all exercises
+          const { updateUserProfile, updateStreakCount } = await import('@/lib/supabase/services/user-service');
+          
+          // Update overall progress (this recalculates based on all progress records)
+          await updateUserProfile(userId);
+          
+          // Update streak count to maintain activity streak
+          await updateStreakCount(userId, 1);
+          
+          console.log("Updated user profile and streak count");
+        }
+      } catch (saveError) {
+        console.error("Failed to save reading progress:", saveError);
+      }
     } catch (error) {
       console.error("Error analyzing recording:", error);
-      setFeedback("Sorry, we couldn't analyze your reading. Please try again.");
+      setFeedback({
+        message: "Sorry, couldn't analyze your reading.",
+        score: 0,
+        transcript: "",
+        suggestions: ["Please try again later", "Check your microphone connection"]
+      });
     }
   };
   
-  // Clean up timers when component unmounts
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
+  const playAudio = async () => {
+    try {
+      setIsPlayingAudio(true);
+      setIsLoadingAudio(true);
+      
+      const formData = new FormData();
+      formData.append('text', currentText.text);
+      formData.append('voice', 'en-AU-Standard-A');
+      
+      const response = await fetch('/api/speech/tts', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) throw new Error(`TTS API failed with status: ${response.status}`);
+      
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audioElement = new Audio(audioUrl);
+      
+      audioElement.onloadedmetadata = () => {
+        setIsLoadingAudio(false);
+      };
+      
+      audioElement.onended = () => {
+        setIsPlayingAudio(false);
+        URL.revokeObjectURL(audioUrl);
+        if (autoAdvance && currentTextIndex < READING_TEXTS.length - 1) {
+          setTimeout(() => {
+            setCurrentTextIndex(prev => prev + 1);
+          }, 1500);
+        }
+      };
+      
+      if (volume) {
+        audioElement.volume = volumeLevel;
+      } else {
+        audioElement.volume = 0;
       }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-  
-  // Function to determine word style based on index
-  const getWordStyle = (index: number) => {
-    if (index === currentWordIndex) {
-      return "bg-primary text-primary-foreground px-1 py-0.5 rounded animate-pulse-gentle";
-    } else if (index < currentWordIndex) {
-      return "text-muted-foreground";
+      
+      audioElement.play();
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      setIsPlayingAudio(false);
+      setIsLoadingAudio(false);
+      setFeedback({
+        message: "Sorry, couldn't play audio.",
+        score: 0,
+        transcript: "",
+        suggestions: ["Check your internet connection", "Try refreshing the page"]
+      });
     }
-    return "";
   };
+  
+  // ... useEffect hooks remain the same ...
+
+  // ... rest of component ...
   
   return (
     <div style={{
@@ -396,11 +487,15 @@ export default function ReadingPracticePage() {
           0%, 100% { transform: scale(1); background-color: #EF476F; }
           50% { transform: scale(1.05); background-color: #FF6B6B; }
         }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
       `}</style>
       
-      {/* Hide audio element */}
-      <audio ref={audioRef} className="hidden" />
-
+      {/* Add the hidden audio element here */}
+      <audio ref={audioRef} />
+      
       {/* Header */}
       <header style={{
         borderBottom: '2px solid #FFD166',
@@ -439,11 +534,55 @@ export default function ReadingPracticePage() {
             </Link>
           </div>
           
-          <UserButton afterSignOutUrl="/" />
-        </div>
-      </header>
+          {/* Right side controls */}          
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem' 
+          }}>
+            {/* Volume Control Group */} 
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Button 
+                variant="outline"
+                    size="icon"
+                onClick={() => setVolume(!volume)}
+                aria-label={volume ? "Mute volume" : "Unmute volume"}
+                style={{ width: '2.5rem', height: '2.5rem' }}
+                  >
+                {volume ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+                  </Button>
+              <Slider
+                value={[volumeLevel * 100]}
+                max={100}
+                step={1}
+                className="w-[100px]"
+                onValueChange={(value) => {
+                  const newLevel = value[0] / 100;
+                  setVolumeLevel(newLevel);
+                  if (!volume && newLevel > 0) { setVolume(true); }
+                }}
+                disabled={!volume}
+              />
+                </div>
+            
+            {/* Settings Button */}
+                        <Button 
+                          variant="outline" 
+              size="icon"
+              onClick={() => setShowSettings(!showSettings)}
+              aria-label="Reading settings"
+              style={{ width: '2.5rem', height: '2.5rem' }}
+            >
+              <Settings className="h-5 w-5" />
+                        </Button>
 
-      {/* Main Content */}
+            {/* User Button */} 
+            <UserButton afterSignOutUrl="/" />
+                      </div>
+                      </div>
+      </header>
+      
+      {/* Main Content Area */}
       <main style={{
         flex: '1',
         display: 'flex',
@@ -475,8 +614,8 @@ export default function ReadingPracticePage() {
           }}>
             Read along with the highlighted words at your own pace. Practice your pronunciation and fluency!
           </p>
-        </div>
-        
+                    </div>
+                    
         {/* Reading Card */}
         <div style={{
           width: '100%',
@@ -503,6 +642,9 @@ export default function ReadingPracticePage() {
                 <h2 style={{
                   fontSize: '1.5rem',
                   fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
                   marginBottom: '0.5rem',
                   textShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)'
                 }}>
@@ -515,28 +657,26 @@ export default function ReadingPracticePage() {
                   {currentText.focus} - {currentText.difficulty}
                 </p>
               </div>
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  width: '2.5rem',
-                  height: '2.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-              >
-                <Settings style={{ width: '1.25rem', height: '1.25rem', color: 'white' }} />
-              </button>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                backgroundColor: '#FFD166',
+                color: '#2563EB',
+                fontWeight: '600',
+                padding: '0.5rem 0.75rem',
+                borderRadius: '1rem',
+                fontSize: '0.875rem',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+              }}>
+                Text {currentTextIndex + 1} of {READING_TEXTS.length}
+              </div>
             </div>
-          </div>
-
-          {/* Card Content */}
+                    </div>
+                    
+          {/* Card Content */} 
           <div style={{ padding: '2rem' }}>
-            {/* Settings Panel */}
+            {/* Settings Panel */} 
             {showSettings && (
               <div style={{
                 marginBottom: '1.5rem',
@@ -557,65 +697,6 @@ export default function ReadingPracticePage() {
                   flexDirection: 'column',
                   gap: '1rem'
                 }}>
-                  <div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: '0.5rem'
-                    }}>
-                      <label style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        color: '#4B5563'
-                      }}>
-                        <Timer style={{ width: '1rem', height: '1rem' }} />
-                        <span>Reading Speed: {wordsPerMinute} WPM</span>
-                      </label>
-                      <button
-                        onClick={() => setWordsPerMinute(currentText.targetWordsPerMinute)}
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.75rem',
-                          fontWeight: '500',
-                          backgroundColor: 'white',
-                          color: '#3B82F6',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '0.375rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Set Recommended ({currentText.targetWordsPerMinute} WPM)
-                      </button>
-                    </div>
-                    <input 
-                      type="range" 
-                      min="30" 
-                      max="200" 
-                      step="5"
-                      value={wordsPerMinute}
-                      onChange={(e) => handleSpeedChange([parseInt(e.target.value)])}
-                      style={{
-                        width: '100%',
-                        height: '1rem',
-                        accentColor: '#3B82F6',
-                        margin: '0.5rem 0'
-                      }}
-                    />
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: '0.75rem',
-                      color: '#6B7280'
-                    }}>
-                      <span>Slower</span>
-                      <span>Faster</span>
-                    </div>
-                  </div>
-                  
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -623,35 +704,8 @@ export default function ReadingPracticePage() {
                   }}>
                     <input
                       type="checkbox"
-                      id="pacing-bar"
-                      checked={showPacingBar}
-                      onChange={(e) => setShowPacingBar(e.target.checked)}
-                      style={{
-                        width: '1rem',
-                        height: '1rem',
-                        accentColor: '#3B82F6'
-                      }}
-                    />
-                    <label
-                      htmlFor="pacing-bar"
-                      style={{
-                        fontSize: '0.875rem',
-                        color: '#4B5563'
-                      }}
-                    >
-                      Show Pacing Bar
-                    </label>
-                  </div>
-                  
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
-                  }}>
-                    <input
-                      type="checkbox"
-                      id="auto-advance"
-                      checked={autoAdvance}
+                        id="auto-advance"
+                        checked={autoAdvance}
                       onChange={(e) => setAutoAdvance(e.target.checked)}
                       style={{
                         width: '1rem',
@@ -668,181 +722,330 @@ export default function ReadingPracticePage() {
                     >
                       Auto-advance to Next Text
                     </label>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Pacing Bar */}
-            {showPacingBar && (
-              <div style={{
-                marginBottom: '1.5rem'
-              }}>
-                <div style={{
-                  width: '100%',
-                  height: '0.5rem',
-                  backgroundColor: '#E5E7EB',
-                  borderRadius: '9999px',
-                  overflow: 'hidden'
-                }}>
-                  <div 
-                    style={{
-                      height: '100%',
-                      width: `${progress}%`,
-                      backgroundColor: '#3B82F6',
-                      borderRadius: '9999px',
-                      transition: 'width 0.3s ease'
-                    }}
-                  />
-                </div>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '0.75rem',
-                  color: '#6B7280',
-                  marginTop: '0.25rem'
-                }}>
-                  <span>Start</span>
-                  <span>End</span>
-                </div>
-              </div>
-            )}
-
-            {/* Reading Text Display */}
-            <div 
-              ref={containerRef}
+              )}
+              
+              {/* Reading Text Display */}
+              <div 
+                ref={containerRef}
               style={{
+                marginBottom: '2rem',
                 padding: '1.5rem',
-                backgroundColor: '#F9FAFB',
-                borderRadius: '0.75rem',
-                fontSize: '1.25rem',
-                lineHeight: '1.7',
-                letterSpacing: '0.015em'
+                backgroundColor: '#EFF6FF',
+                borderRadius: '1rem',
+                border: '2px dashed #3B82F6',
+                textAlign: 'center'
               }}
             >
-              {words.map((word, index) => (
-                <span 
-                  key={index} 
-                  style={{
-                    display: 'inline-block',
-                    marginRight: '0.25rem',
-                    transition: 'all 0.2s ease',
-                    padding: index === currentWordIndex ? '0.125rem 0.25rem' : '0',
-                    borderRadius: '0.25rem',
-                    backgroundColor: index === currentWordIndex ? '#3B82F6' : 'transparent',
-                    color: index === currentWordIndex 
-                      ? 'white' 
-                      : index < currentWordIndex ? '#9CA3AF' : 'inherit',
-                    animation: index === currentWordIndex ? 'pulse 1s infinite ease-in-out' : 'none'
-                  }}
-                >
-                  {word}
-                </span>
-              ))}
-            </div>
-
-            {/* Controls */}
+              <p style={{
+                fontSize: '1.5rem',
+                fontWeight: '600',
+                color: '#2563EB',
+                lineHeight: '1.5'
+              }}>
+                {currentText.text}
+              </p>
+              </div>
+              
+              {/* Controls */}
             <div style={{
-              marginTop: '2rem',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '1.5rem'
             }}>
+              {/* Play Button Section */}
               <div style={{
                 display: 'flex',
-                gap: '1rem'
-              }}>
-                {/* Play/Pause Button */}
-                <button 
-                  onClick={startReading}
-                  disabled={isRecording}
-                  style={{
-                    width: '4rem',
-                    height: '4rem',
-                    borderRadius: '50%',
-                    backgroundColor: isPlaying ? '#059669' : '#3B82F6',
-                    color: 'white',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: isRecording ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
-                    opacity: isRecording ? '0.7' : '1',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {isPlaying ? (
-                    <Pause style={{ width: '1.5rem', height: '1.5rem' }} />
-                  ) : (
-                    <Play style={{ width: '1.5rem', height: '1.5rem' }} />
-                  )}
-                </button>
-                
-                {/* Record Button */}
-                <button 
-                  onClick={startRecording}
-                  style={{
-                    width: '4rem',
-                    height: '4rem',
-                    borderRadius: '50%',
-                    backgroundColor: isRecording ? '#EF476F' : '#3B82F6',
-                    color: 'white',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
-                    animation: isRecording ? 'recording-pulse 1.5s infinite' : 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <Mic style={{ width: '1.5rem', height: '1.5rem' }} />
-                </button>
-              </div>
-              
-              <div style={{
-                textAlign: 'center',
-                fontSize: '0.875rem'
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem'
               }}>
                 <p style={{
-                  fontWeight: '500',
-                  color: '#4B5563',
-                  marginBottom: '0.25rem'
-                }}>
-                  {isPlaying 
-                    ? "Follow along with the highlighted words" 
-                    : "Press play to start"}
-                  {isRecording && " - Recording your voice"}
-                </p>
-                <p style={{ color: '#6B7280' }}>
-                  Current pace: {wordsPerMinute} words per minute
-                </p>
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: '#4B5563'
+                }}>1. Listen to the passage</p>
+                <button 
+                  onClick={playAudio}
+                  disabled={isLoadingAudio || isRecording}
+                  style={{
+                    width: '4rem',
+                    height: '4rem',
+                    borderRadius: '50%',
+                    backgroundColor: isPlayingAudio ? '#06D6A0' : '#3B82F6',
+                    color: 'white',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: (isLoadingAudio || isRecording) ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                    animation: isPlayingAudio ? 'pulse 1s infinite ease-in-out' : 'none',
+                    opacity: (isLoadingAudio || isRecording) ? '0.7' : '1',
+                    transition: 'all 0.2s ease'
+                  }}
+                  aria-label={isPlayingAudio ? "Pause" : "Play"}
+                >
+                  {isLoadingAudio ? (
+                    <Loader2 style={{ width: '1.75rem', height: '1.75rem' }} className="animate-spin" />
+                  ) : isPlayingAudio ? (
+                    <Pause style={{ width: '1.75rem', height: '1.75rem' }} />
+                  ) : (
+                    <Play style={{ width: '1.75rem', height: '1.75rem', marginLeft: '4px' }} />
+                  )}
+                </button>
               </div>
-              
-              {/* Feedback */}
+                
+              {/* Record Button Section */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}>
+                <p style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: '#4B5563'
+                }}>2. Now it's your turn</p>
+                {isRecording ? (
+                  <button
+                    onClick={stopRecording}
+                    style={{
+                      width: '4rem',
+                      height: '4rem',
+                      borderRadius: '50%',
+                      backgroundColor: '#EF476F',
+                      color: 'white',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 6px rgba(239, 71, 111, 0.3)',
+                      animation: 'recording-pulse 1.5s infinite',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Square style={{ width: '1.75rem', height: '1.75rem' }} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={startRecording}
+                    disabled={isPlayingAudio || isLoadingAudio}
+                    style={{
+                      width: '4rem',
+                      height: '4rem',
+                      borderRadius: '50%',
+                      backgroundColor: '#3B82F6',
+                      color: 'white',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: (isPlayingAudio || isLoadingAudio) ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                      opacity: (isPlayingAudio || isLoadingAudio) ? '0.7' : '1',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Mic style={{ width: '1.75rem', height: '1.75rem' }} />
+                  </button>
+                )}
+                <p style={{
+                  fontSize: '0.875rem',
+                  color: '#4B5563'
+                }}>
+                  {isRecording ? "Recording... Click to stop" : "Click to start recording"}
+                </p>
+                </div>
+                
+              {/* Feedback section - enhanced */}
               {feedback && (
                 <div style={{
                   width: '100%',
-                  padding: '1rem 1.5rem',
-                  backgroundColor: '#ECFDF5',
+                  padding: '1.5rem',
+                  backgroundColor: '#F0F9FF', // Light blue background
                   borderRadius: '0.75rem',
-                  border: '1px solid #D1FAE5',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                  border: '1px solid #BFDBFE',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  marginTop: '1.5rem'
                 }}>
                   <div style={{
                     display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.5rem'
+                    flexDirection: 'column',
+                    gap: '1rem'
                   }}>
-                    <span style={{ fontSize: '1.25rem' }}>⭐</span>
-                    <p style={{
-                      fontSize: '0.875rem',
-                      color: '#065F46',
-                      margin: 0
-                    }}>{feedback}</p>
+                    {/* Score section */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <h3 style={{
+                        fontSize: '1.1rem',
+                        fontWeight: '600',
+                        color: '#1E40AF',
+                        margin: 0
+                      }}>
+                        Reading Assessment
+                      </h3>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        backgroundColor: '#EFF6FF',
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '1rem',
+                        fontWeight: '600'
+                      }}>
+                        <Trophy style={{ width: '1rem', height: '1rem', color: '#FFD166' }} />
+                        <span style={{ color: '#2563EB' }}>
+                          {feedback.score}% Score
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Score progress bar */}
+                    <div style={{
+                      width: '100%',
+                      height: '0.75rem',
+                      backgroundColor: '#e5e7eb',
+                      borderRadius: '9999px',
+                      overflow: 'hidden',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                      marginBottom: '1rem'
+                    }}>
+                      <div 
+                        style={{
+                          height: '100%',
+                          width: `${feedback.score}%`,
+                          background: 
+                            feedback.score >= 80 ? 'linear-gradient(to right, #059669, #10B981)' : 
+                            feedback.score >= 50 ? 'linear-gradient(to right, #FFD166, #FBBF24)' : 
+                            'linear-gradient(to right, #EF4444, #F87171)',
+                          borderRadius: '9999px',
+                          transition: 'width 0.8s ease-in-out'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Feedback message */}
+                    <div style={{
+                      padding: '1rem',
+                      backgroundColor: 'white',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #E5E7EB'
+                    }}>
+                      <p style={{
+                        fontSize: '0.95rem',
+                        fontWeight: '500',
+                        color: '#4B5563',
+                        marginBottom: '0.5rem'
+                      }}>
+                        {feedback.message}
+                      </p>
+                      
+                      {/* Show transcript */}
+                      {feedback.transcript && (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.375rem',
+                          border: '1px dashed #D1D5DB'
+                        }}>
+                          <p style={{
+                            fontSize: '0.85rem',
+                            color: '#6B7280',
+                            margin: 0,
+                            fontStyle: 'italic'
+                          }}>
+                            "<span style={{ color: '#4B5563', fontWeight: '500' }}>{feedback.transcript}</span>"
+                          </p>
+                        </div>
+                      )}
+                </div>
+                
+                    {/* Suggestions list */}
+                    {feedback.suggestions.length > 0 && (
+                      <div style={{
+                        marginTop: '0.5rem'
+                      }}>
+                        <h4 style={{
+                          fontSize: '0.9rem',
+                          fontWeight: '600',
+                          color: '#4B5563',
+                          marginBottom: '0.5rem'
+                        }}>
+                          Tips for improvement:
+                        </h4>
+                        <ul style={{
+                          padding: '0 0 0 1.25rem',
+                          margin: 0,
+                          fontSize: '0.85rem',
+                          color: '#6B7280'
+                        }}>
+                          {feedback.suggestions.map((suggestion, index) => (
+                            <li key={index} style={{ marginBottom: '0.25rem' }}>{suggestion}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {/* Action buttons */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginTop: '1rem'
+                    }}>
+                      <button
+                        onClick={playAudio}
+                        disabled={isPlayingAudio || isRecording}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: 'white',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '0.375rem',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          color: '#3B82F6',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <RepeatIcon style={{ width: '1rem', height: '1rem' }} />
+                        Listen Again
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setFeedback(null);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: 'white',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '0.375rem',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          color: '#3B82F6',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <RefreshCw style={{ width: '1rem', height: '1rem' }} />
+                        Try Again
+                      </button>
+              </div>
                   </div>
                 </div>
               )}
@@ -851,94 +1054,161 @@ export default function ReadingPracticePage() {
 
           {/* Card Footer */}
           <div style={{
-            padding: '1.5rem',
-            borderTop: '1px solid #E5E7EB',
+            padding: '1.5rem 2rem',
+            borderTop: '2px solid #EFF6FF',
             display: 'flex',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
             <button
-              onClick={goToPreviousText}
-              disabled={isPlaying || isRecording}
+                  onClick={goToPreviousText}
+              disabled={isPlayingAudio || isRecording || isLoadingAudio}
               style={{
                 padding: '0.75rem 1.25rem',
-                backgroundColor: 'white',
-                color: '#3B82F6',
-                border: '1px solid #D1D5DB',
-                borderRadius: '0.5rem',
-                fontWeight: '500',
-                cursor: (isPlaying || isRecording) ? 'not-allowed' : 'pointer',
-                opacity: (isPlaying || isRecording) ? '0.7' : '1'
-              }}
-            >
-              Previous Text
-            </button>
-            
-            <button
-              onClick={goToNextText}
-              disabled={isPlaying || isRecording}
-              style={{
-                padding: '0.75rem 1.25rem',
-                backgroundColor: '#3B82F6',
-                color: 'white',
+                borderRadius: '0.75rem',
                 border: 'none',
-                borderRadius: '0.5rem',
-                fontWeight: '500',
+                backgroundColor: currentTextIndex === 0 ? '#F3F4F6' : '#EFF6FF',
+                color: currentTextIndex === 0 ? '#9CA3AF' : '#2563EB',
+                fontWeight: '600',
+                cursor: currentTextIndex === 0 ? 'default' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                cursor: (isPlaying || isRecording) ? 'not-allowed' : 'pointer',
-                opacity: (isPlaying || isRecording) ? '0.7' : '1'
+                boxShadow: currentTextIndex === 0 ? 'none' : '0 2px 4px rgba(59, 130, 246, 0.2)'
               }}
             >
-              Next Text
+              <ArrowLeft style={{ width: '1rem', height: '1rem' }} />
+              Previous
+            </button>
+            
+            <button
+                  onClick={goToNextText}
+              disabled={isPlayingAudio || isRecording || isLoadingAudio}
+              style={{
+                padding: '0.75rem 1.25rem',
+                borderRadius: '0.75rem',
+                border: 'none',
+                backgroundColor: currentTextIndex === READING_TEXTS.length - 1 ? '#F3F4F6' : '#3B82F6',
+                color: currentTextIndex === READING_TEXTS.length - 1 ? '#9CA3AF' : 'white',
+                fontWeight: '600',
+                cursor: currentTextIndex === READING_TEXTS.length - 1 ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                boxShadow: currentTextIndex === READING_TEXTS.length - 1 ? 'none' : '0 4px 6px rgba(59, 130, 246, 0.3)'
+              }}
+            >
+              Next
               <ChevronRight style={{ width: '1rem', height: '1rem' }} />
             </button>
-          </div>
+              </div>
         </div>
-        
-        {/* Tips Section */}
+          
+          {/* Tips Section */}
         <div style={{
           width: '100%',
           maxWidth: '800px',
           marginTop: '2rem',
-          padding: '1.5rem',
+          borderRadius: '1.5rem',
+          border: '2px dashed #06D6A0',
           backgroundColor: 'white',
-          borderRadius: '1rem',
-          border: '2px solid #E5E7EB',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)'
+          padding: '1.5rem',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+          transform: 'rotate(-0.5deg)'
         }}>
           <h3 style={{
             fontSize: '1.25rem',
             fontWeight: 'bold',
             marginBottom: '1rem',
-            color: '#4B5563'
-          }}>Reading Practice Tips</h3>
-          <ul style={{
-            paddingLeft: '1.5rem',
-            margin: 0,
-            color: '#4B5563',
-            fontSize: '0.875rem',
-            lineHeight: '1.7'
+            color: '#059669',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            textShadow: '1px 1px 0px rgba(5, 150, 105, 0.1)'
           }}>
-            <li>Try to maintain a steady rhythm when reading</li>
-            <li>Pay special attention to the focus sounds in each text</li>
-            <li>Record yourself to hear how you sound</li>
-            <li>Start slower and gradually increase your reading speed</li>
-            <li>Take breaks between texts if you need to</li>
-          </ul>
+            <span style={{ fontSize: '1.5rem' }}>💡</span> 
+            Tips for "{currentText.focus}"
+          </h3>
+          <ul style={{
+            listStyleType: 'none',
+            padding: '0',
+            margin: '0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem'
+          }}>
+            <li style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.5rem',
+              fontSize: '1rem',
+              color: '#4B5563',
+              lineHeight: '1.5'
+            }}>
+              <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
+              Try to maintain a steady rhythm when reading
+            </li>
+            <li style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.5rem',
+              fontSize: '1rem',
+              color: '#4B5563',
+              lineHeight: '1.5'
+            }}>
+              <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+              Pay special attention to the focus sounds in each text
+            </li>
+            <li style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.5rem',
+              fontSize: '1rem',
+              color: '#4B5563',
+              lineHeight: '1.5'
+            }}>
+              <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+              Start slower and gradually increase your reading speed
+            </li>
+              </ul>
         </div>
       </main>
       
       {/* Footer */}
       <footer style={{ 
-        borderTop: '1px solid #E5E7EB', 
-        padding: '1.5rem',
+        borderTop: '2px solid #EBF5FF', 
+        padding: '1.5rem 0',
         backgroundColor: 'white',
-        textAlign: 'center',
-        fontSize: '0.875rem',
-        color: '#6B7280'
+        marginTop: '2rem'
       }}>
-        Speech Buddy - Fun Reading Practice for Kids
+        <div style={{ 
+          maxWidth: '1200px', 
+          margin: '0 auto', 
+          padding: '0 1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.75rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ 
+            width: '2.5rem', 
+            height: '2.5rem', 
+            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)', 
+            borderRadius: '50%', 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '1rem',
+            fontWeight: 'bold',
+            animation: 'float 3s infinite ease-in-out'
+          }}>S</div>
+          <p style={{ fontSize: '0.875rem', color: '#6B7280' }}>
+            Speech Buddy - Practice makes perfect!
+          </p>
+        </div>
       </footer>
     </div>
   );

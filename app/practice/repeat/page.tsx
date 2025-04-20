@@ -14,8 +14,36 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Mic, Play, Square, Volume2, VolumeX, ChevronRight, Pause } from "lucide-react";
+import { ArrowLeft, Mic, Play, Square, Volume2, VolumeX, ChevronRight, Pause, RepeatIcon, RefreshCw, Trophy } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { STTResponse } from "@/lib/google/speech-to-text";
+import { saveUserProgress } from '@/lib/supabase/services/exercise-service';
+import { 
+  upsertUserProfile, 
+  updateUserProfile, 
+  updateStreakCount, 
+  getUserProfile 
+} from '@/lib/supabase/services/user-service';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
+
+// Extend the STTResponse interface to include the targetSoundAnalysis property
+interface ExtendedSTTResponse extends STTResponse {
+  targetSoundAnalysis?: {
+    accuracy: number;
+    correctWords: string[];
+    incorrectWords: string[];
+    suggestions: string[];
+  };
+}
+
+// Add PracticePhrase interface
+interface PracticePhrase {
+  id: number;
+  text: string;
+  focus: string;
+  difficulty: string;
+}
 
 // Sample phrases for practice (fallback if API fails)
 const PRACTICE_PHRASES = [
@@ -45,26 +73,46 @@ const PRACTICE_PHRASES = [
   }
 ];
 
+// Define feedback type
+interface FeedbackData {
+  message: string;
+  accuracy: number;
+  transcription: string;
+  suggestions: string[];
+}
+
 export default function RepeatAfterMePage() {
   // State for the current exercise
+  const [targetSound, setTargetSound] = useState<string>('r');
   const [currentPhraseIndex, setCurrentPhraseIndex] = useState(0);
+  const [practicePhrases, setPracticePhrases] = useState<PracticePhrase[]>(PRACTICE_PHRASES);
+  const [loading, setLoading] = useState(true);
+  
+  // Audio playback state
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [volumeLevel, setVolumeLevel] = useState(0.7);
+  const [loadingAudio, setLoadingAudio] = useState(false);
+  const [loadingPhrase, setLoadingPhrase] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingComplete, setRecordingComplete] = useState(false);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-  const [volume, setVolume] = useState(true);
-  const [volumeLevel, setVolumeLevel] = useState(1);
   const [progress, setProgress] = useState(0);
-  const [practicePhrases, setPracticePhrases] = useState(PRACTICE_PHRASES);
-  const [loadingPhrase, setLoadingPhrase] = useState(false);
-  
-  // Audio processing
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  
+  // Analysis state
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackData | null>(null);
+  
+  // Router and user
+  const router = useRouter();
+  const { user } = useUser();
+  const [streakCount, setStreakCount] = useState<number | null>(null);
   
   const currentPhrase = practicePhrases[currentPhraseIndex];
   
@@ -159,29 +207,29 @@ export default function RepeatAfterMePage() {
   
   // Helper function to process audio response
   const processAudioResponse = async (response: Response) => {
-    // Process the audio directly
-    if (audioRef.current) {
-      // Get audio as blob and create URL
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      // Set the audio source and play
-      audioRef.current.src = audioUrl;
-      audioRef.current.volume = volume ? volumeLevel : 0;
-      audioRef.current.onloadedmetadata = () => {
-        setLoadingPhrase(false);
-        setLoadingAudio(false);
-        setIsPlaying(true);
-        audioRef.current?.play();
-      };
-      
-      audioRef.current.onended = () => {
-        setIsPlaying(false);
-        URL.revokeObjectURL(audioUrl); // Clean up the URL
-      };
+      // Process the audio directly
+      if (audioRef.current) {
+        // Get audio as blob and create URL
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // Set the audio source and play
+        audioRef.current.src = audioUrl;
+        audioRef.current.volume = isMuted ? 0 : volumeLevel;
+        audioRef.current.onloadedmetadata = () => {
+          setLoadingPhrase(false);
+          setLoadingAudio(false);
+          setIsPlaying(true);
+          audioRef.current?.play();
+        };
+        
+        audioRef.current.onended = () => {
+          setIsPlaying(false);
+          URL.revokeObjectURL(audioUrl); // Clean up the URL
+        };
     }
   };
-
+  
   // Function to play audio directly from a response
   const playAudioFromResponse = async (response: Response) => {
     try {
@@ -251,7 +299,7 @@ export default function RepeatAfterMePage() {
       // Set the audio source and play
       if (audioRef.current) {
         audioRef.current.src = audioUrl;
-        audioRef.current.volume = volume ? volumeLevel : 0;
+        audioRef.current.volume = isMuted ? 0 : volumeLevel;
         audioRef.current.onloadedmetadata = () => {
           setLoadingAudio(false);
           setIsPlaying(true);
@@ -338,108 +386,142 @@ export default function RepeatAfterMePage() {
   };
   
   // Function to analyze the recorded audio
-  const analyzeRecording = async (blob: Blob) => {
+  const analyzeRecording = async (audioBlob: Blob) => {
     try {
       setLoadingAnalysis(true);
-      
-      // Create FormData with the audio blob and target parameters
+      setFeedback(null);
+
+      // Use the user from the component level 
+      const userId = user?.id;
+      if (!userId) {
+        throw new Error('You must be logged in to analyze recordings');
+      }
+
+      // Create form data for API request
       const formData = new FormData();
-      formData.append('audio', blob, 'recording.wav');
-      
-      // Add target sound parameter based on current phrase focus
-      let targetSound = '';
-      if (currentPhrase.focus === 'R Sounds') {
-        targetSound = 'r';
-      } else if (currentPhrase.focus === 'S Sounds') {
-        targetSound = 's'; 
-      } else if (currentPhrase.focus === 'L Sounds') {
-        targetSound = 'l';
-      } else if (currentPhrase.focus === 'Th Sounds') {
-        targetSound = 'th';
-      }
-      
-      console.log(`Analysis using target sound: "${targetSound}" from focus: "${currentPhrase.focus}"`);
-      
-      if (targetSound) {
-        formData.append('targetSound', targetSound);
-      }
-      
-      // Add the current phrase as target text (for comparison)
+      formData.append('audio', audioBlob);
       formData.append('targetText', currentPhrase.text);
-      console.log(`Sending target phrase for comparison: "${currentPhrase.text}"`);
       
-      // Set the language code to Australian English
-      formData.append('languageCode', 'en-AU');
-      
-      // Make the API call to the ASR endpoint
-      const response = await fetch('/api/speech/asr', {
+      // Send audio to the ASR API
+      const response = await fetch('/api/speech/recognize', {
         method: 'POST',
-        body: formData
+        body: formData,
       });
       
       if (!response.ok) {
-        throw new Error(`ASR API responded with status: ${response.status}`);
+        throw new Error(`Error analyzing speech: ${response.statusText}`);
       }
+
+      // Process the response
+      const data: ExtendedSTTResponse = await response.json();
       
-      const data = await response.json();
+      // Check if we have a transcript or a "No speech detected" error
+      const transcript = data.transcript || '';
       
-      // Check if we have valid transcription data
-      if (!data.transcript) {
-        setFeedback("We couldn't hear you clearly. Please try speaking louder or move closer to the microphone.");
-        setLoadingAnalysis(false);
+      // Special handling for "No speech detected" error
+      if (data.error === 'No speech detected') {
+        setFeedback({
+          message: 'I couldn\'t detect any speech. Please try speaking louder or check your microphone.',
+          accuracy: 0,
+          transcription: '',
+          suggestions: [
+            'Make sure your microphone is working properly',
+            'Speak clearly and directly into your microphone',
+            'Try recording in a quieter environment'
+          ]
+        });
+        setRecordingComplete(true);
         return;
       }
       
-      // Save the transcription and analysis data
-      const transcription = data.transcript;
+      // Calculate accuracy score
+      const scorePercentage = calculateAccuracy(currentPhrase.text, transcript);
       
-      // Generate feedback based on API response
-      let feedbackMessage = '';
+      // Prepare feedback message and suggestions
+      let feedbackMsg = '';
+      const suggestions: string[] = [];
       
-      // If we have target sound analysis, use that for feedback
-      if (data.targetSoundAnalysis && targetSound) {
-        const analysis = data.targetSoundAnalysis;
-        const accuracy = analysis.accuracy;
-        
-        if (accuracy >= 90) {
-          feedbackMessage = `Excellent! Your ${currentPhrase.focus} pronunciation was very clear (${accuracy}% accuracy). `;
-        } else if (accuracy >= 70) {
-          feedbackMessage = `Good job! Your ${currentPhrase.focus} pronunciation was mostly clear (${accuracy}% accuracy). `;
+      if (scorePercentage > 80) {
+        feedbackMsg = 'Excellent pronunciation! Your speech was very clear and accurate.';
+      } else if (scorePercentage > 60) {
+        feedbackMsg = 'Good effort! Your pronunciation is improving.';
+        suggestions.push('Try speaking a bit slower for better clarity.');
+        suggestions.push('Focus on the words that were misunderstood in the transcription.');
         } else {
-          feedbackMessage = `Nice try! Your ${currentPhrase.focus} needs a bit more practice (${accuracy}% accuracy). `;
-        }
-        
-        // Add specific word feedback if available
-        if (analysis.incorrectWords.length > 0) {
-          feedbackMessage += `Try to focus on these words: ${analysis.incorrectWords.slice(0, 3).join(', ')}.`;
-        }
-        
-        // Add a tip from the suggestions if available
-        if (analysis.suggestions.length > 0) {
-          feedbackMessage += ` Tip: ${analysis.suggestions[0]}`;
-        }
-      } else if (data.phoneticAnalysis) {
-        // Use general phonetic analysis if target sound analysis isn't available
-        const phoneticAnalysis = data.phoneticAnalysis;
-        feedbackMessage = `I heard: "${transcription}". Overall pronunciation score: ${phoneticAnalysis.overallScore}%. `;
-        
-        // Add suggestions if available
-        if (phoneticAnalysis.suggestions.length > 0) {
-          feedbackMessage += phoneticAnalysis.suggestions[0];
-        }
-      } else {
-        // Fallback to basic feedback
-        feedbackMessage = `I heard: "${transcription}". Keep practicing!`;
+        feedbackMsg = 'Keep practicing! Pronunciation takes time to develop.';
+        suggestions.push('Try breaking the phrase into smaller parts and practice each part.');
+        suggestions.push('Listen to the audio sample again and pay attention to the rhythm.');
+        suggestions.push('Speak more slowly and enunciate each word clearly.');
       }
       
-      setFeedback(feedbackMessage);
-      setLoadingAnalysis(false);
+      // Set feedback using the new structure
+      setFeedback({
+        message: feedbackMsg,
+        accuracy: scorePercentage,
+        transcription: transcript,
+        suggestions: suggestions
+      });
       
+      // Save user progress to Supabase
+      // Create a consistent exercise ID format that includes phrase focus and difficulty
+      const exerciseId = `repeat_${currentPhrase.focus.toLowerCase().replace(/\s+/g, '_')}_${currentPhraseIndex}`;
+      
+      console.log(`Saving progress for exercise ID: ${exerciseId}`);
+      
+      await saveUserProgress({
+        user_id: userId,
+        exercise_id: exerciseId,
+        score: scorePercentage,
+        completed_at: new Date().toISOString(),
+        feedback: `Accuracy: ${scorePercentage}%. Transcript: "${transcript}"`,
+        attempts: 1
+      });
+      
+      // Update user profile progress using the service function
+      // This will correctly calculate overall progress based on all exercises
+      await updateUserProfile(userId);
+      
+      // Update streak count to maintain activity streak
+      await updateStreakCount(userId, 1);
+      
+      setRecordingComplete(true);
     } catch (error) {
-      console.error("Error analyzing recording:", error);
+      console.error('Error analyzing recording:', error);
+      setFeedback({
+        message: 'Sorry, there was an error analyzing your recording.',
+        accuracy: 0,
+        transcription: '',
+        suggestions: ['Please try again later.']
+      });
+    } finally {
       setLoadingAnalysis(false);
-      setFeedback("Sorry, we couldn't analyze your speech. Please try again.");
     }
+  };
+
+  // Helper function to calculate accuracy between target and actual text
+  const calculateAccuracy = (target: string, actual: string): number => {
+    if (!actual) return 0;
+    
+    // Normalize strings for comparison
+    const normalizedTarget = target.toLowerCase().trim();
+    const normalizedActual = actual.toLowerCase().trim();
+    
+    // Simple word-based comparison for demo
+    const targetWords = normalizedTarget.split(/\s+/);
+    const actualWords = normalizedActual.split(/\s+/);
+    
+    let matchedWords = 0;
+    
+    // Count words that appear in both strings
+    actualWords.forEach(word => {
+      if (targetWords.includes(word)) {
+        matchedWords++;
+      }
+    });
+    
+    // Calculate percentage
+    const maxWords = Math.max(targetWords.length, actualWords.length);
+    return Math.round((matchedWords / maxWords) * 100);
   };
   
   // Function to move to the next phrase
@@ -494,10 +576,10 @@ export default function RepeatAfterMePage() {
   // Effect to update audio volume when the volume state changes
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = volume ? volumeLevel : 0;
-      console.log(`Applied volume change: ${volume ? 'unmuted' : 'muted'}, level: ${audioRef.current.volume}`);
+      audioRef.current.volume = isMuted ? 0 : volumeLevel;
+      console.log(`Applied volume change: ${isMuted ? 'muted' : 'unmuted'}, level: ${audioRef.current.volume}`);
     }
-  }, [volume, volumeLevel]);
+  }, [isMuted, volumeLevel]);
   
   // Update UI element (play button) based on whether we should use the practice API or standard TTS
   const handlePlayButtonClick = () => {
@@ -538,6 +620,24 @@ export default function RepeatAfterMePage() {
       playAudio(); // This will use the standard TTS endpoint with the predefined phrase
     }
   };
+  
+  // Fetch user profile data when component mounts
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const { data: profile } = await getUserProfile(user.id);
+        if (profile) {
+          setStreakCount(profile.streak_count || 0);
+        }
+      } catch (err) {
+        console.error("Error fetching user profile:", err);
+      }
+    };
+    
+    fetchUserProfile();
+  }, [user?.id]);
   
   return (
     <div style={{
@@ -619,14 +719,16 @@ export default function RepeatAfterMePage() {
               marginTop: '0.5rem'
             }}>
               {/* Volume Control */}
-              <button
+              <Button 
+                variant="ghost" 
+                size="icon"
                 onClick={() => {
-                  const newVolumeState = !volume;
-                  setVolume(newVolumeState);
+                  const newMuteState = !isMuted;
+                  setIsMuted(newMuteState);
                   
                   // Apply mute/unmute to the audio element immediately
                   if (audioRef.current) {
-                    if (newVolumeState) {
+                    if (!newMuteState) {
                       // Unmute - restore previous volume level
                       audioRef.current.volume = volumeLevel;
                     } else {
@@ -635,27 +737,20 @@ export default function RepeatAfterMePage() {
                     }
                   }
                   
-                  console.log(`Volume set to: ${newVolumeState ? 'on' : 'off'}, level: ${newVolumeState ? volumeLevel : 0}`);
+                  console.log(`Volume set to: ${newMuteState ? 'off' : 'on'}, level: ${newMuteState ? 0 : volumeLevel}`);
                 }}
                 style={{
                   backgroundColor: 'transparent',
                   border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  color: isMuted ? '#9CA3AF' : '#3B82F6',
+                  marginRight: '0.25rem',
                   padding: '0.5rem',
-                  borderRadius: '0.5rem',
-                  color: volume ? '#3B82F6' : '#9CA3AF'
+                  borderRadius: '0.375rem'
                 }}
-                title={volume ? "Mute" : "Unmute"}
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
               >
-                {volume ? (
-                  <Volume2 size={20} />
-                ) : (
-                  <VolumeX size={20} />
-                )}
-              </button>
+                {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </Button>
               
               {/* Volume Slider */}
               <input
@@ -665,24 +760,26 @@ export default function RepeatAfterMePage() {
                 step="0.01"
                 value={audioRef.current?.volume || 1}
                 onChange={(e) => {
+                  const newLevel = parseFloat(e.target.value);
+                  setVolumeLevel(newLevel);
+                  // If volume is set to 0, also update the mute state
+                  setIsMuted(newLevel === 0);
                   if (audioRef.current) {
-                    audioRef.current.volume = parseFloat(e.target.value);
-                    // If volume is set to 0, also update the mute state
-                    setVolume(parseFloat(e.target.value) > 0);
+                    audioRef.current.volume = newLevel;
                   }
                 }}
                 style={{
                   width: '100px',
                   accentColor: '#3B82F6'
                 }}
-                disabled={!volume}
+                disabled={isMuted}
               />
-            </div>
-            <UserButton afterSignOutUrl="/" />
+          </div>
+          <UserButton afterSignOutUrl="/" />
           </div>
         </div>
       </header>
-
+      
       {/* Main Content */}
       <main style={{
         flex: '1',
@@ -714,10 +811,10 @@ export default function RepeatAfterMePage() {
             lineHeight: '1.6'
           }}>
             Listen carefully and repeat the phrase to practice your pronunciation!
-          </p>
-        </div>
-
-        {/* Exercise Card */}
+            </p>
+          </div>
+          
+          {/* Exercise Card */}
         <div style={{
           width: '100%',
           maxWidth: '800px',
@@ -755,9 +852,9 @@ export default function RepeatAfterMePage() {
                   fontSize: '1rem',
                   opacity: '0.9'
                 }}>
-                  Difficulty: {currentPhrase.difficulty}
+                    Difficulty: {currentPhrase.difficulty}
                 </p>
-              </div>
+                </div>
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -792,11 +889,11 @@ export default function RepeatAfterMePage() {
                 color: '#2563EB',
                 lineHeight: '1.5'
               }}>
-                {currentPhrase.text}
+                  {currentPhrase.text}
               </p>
-            </div>
-
-            {/* Controls */}
+              </div>
+              
+              {/* Controls */}
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -816,7 +913,7 @@ export default function RepeatAfterMePage() {
                   color: '#4B5563'
                 }}>1. Listen to the phrase</p>
                 <button
-                  onClick={handlePlayButtonClick}
+                    onClick={handlePlayButtonClick}
                   disabled={loadingAudio}
                   style={{
                     width: '4rem',
@@ -833,8 +930,8 @@ export default function RepeatAfterMePage() {
                     animation: isPlaying ? 'pulse 1s infinite ease-in-out' : 'none',
                     transition: 'all 0.2s ease'
                   }}
-                >
-                  {loadingAudio ? (
+                  >
+                    {loadingAudio ? (
                     <span style={{ fontSize: '1.25rem' }}>...</span>
                   ) : isPlaying ? (
                     <Pause style={{ 
@@ -850,8 +947,8 @@ export default function RepeatAfterMePage() {
                   )}
                 </button>
                 <audio ref={audioRef} className="hidden" />
-              </div>
-
+                </div>
+                
               {/* Record Button Section */}
               <div style={{
                 display: 'flex',
@@ -864,7 +961,7 @@ export default function RepeatAfterMePage() {
                   fontWeight: '600',
                   color: '#4B5563'
                 }}>2. Now it's your turn</p>
-                {isRecording ? (
+                      {isRecording ? (
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -889,7 +986,7 @@ export default function RepeatAfterMePage() {
                           transition: 'width 0.1s linear'
                         }}
                       />
-                    </div>
+                        </div>
                     <button
                       onClick={() => {
                         mediaRecorderRef.current?.stop();
@@ -919,7 +1016,7 @@ export default function RepeatAfterMePage() {
                     }}>
                       Recording... Click to stop
                     </p>
-                  </div>
+                      </div>
                 ) : (
                   <button
                     onClick={() => startRecording()}
@@ -941,39 +1038,197 @@ export default function RepeatAfterMePage() {
                   >
                     <Mic style={{ width: '1.75rem', height: '1.75rem' }} />
                   </button>
-                )}
-              </div>
+                    )}
+                  </div>
 
               {/* Feedback Section */}
               {feedback && (
                 <div style={{
                   width: '100%',
                   padding: '1.5rem',
-                  borderRadius: '1rem',
-                  backgroundColor: recordingComplete ? '#F0FDF4' : '#FFFBEB',
-                  border: recordingComplete ? '2px solid #06D6A0' : '2px solid #FFD166',
-                  marginTop: '1rem'
+                  backgroundColor: '#F0F9FF', // Light blue background
+                  borderRadius: '0.75rem',
+                  border: '1px solid #BFDBFE',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                  marginTop: '1.5rem'
                 }}>
-                  <h3 style={{
-                    fontSize: '1.25rem',
-                    fontWeight: '600',
-                    marginBottom: '0.75rem',
-                    color: recordingComplete ? '#059669' : '#2563EB',
-                    textAlign: 'center'
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
                   }}>
-                    {recordingComplete ? 'Great job!' : 'Keep practicing!'}
-                  </h3>
-                  <p style={{
-                    fontSize: '1rem',
-                    color: '#4B5563',
-                    lineHeight: '1.6',
-                    textAlign: 'center'
-                  }}>
-                    {feedback}
-                  </p>
-                </div>
-              )}
-
+                    {/* Score section */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <h3 style={{
+                        fontSize: '1.1rem',
+                        fontWeight: '600',
+                        color: '#1E40AF',
+                        margin: 0
+                      }}>
+                        Pronunciation Assessment
+                      </h3>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        backgroundColor: '#EFF6FF',
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '1rem',
+                        fontWeight: '600'
+                      }}>
+                        <Trophy style={{ width: '1rem', height: '1rem', color: '#FFD166' }} />
+                        <span style={{ color: '#2563EB' }}>
+                          {feedback.accuracy}% Score
+                    </span>
+                      </div>
+                    </div>
+                    
+                    {/* Score progress bar */}
+                    <div style={{
+                      width: '100%',
+                      height: '0.75rem',
+                      backgroundColor: '#e5e7eb',
+                      borderRadius: '9999px',
+                      overflow: 'hidden',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                      marginBottom: '1rem'
+                    }}>
+                      <div 
+                        style={{
+                          height: '100%',
+                          width: `${feedback.accuracy}%`,
+                          background: 
+                            feedback.accuracy >= 80 ? 'linear-gradient(to right, #059669, #10B981)' : 
+                            feedback.accuracy >= 50 ? 'linear-gradient(to right, #FFD166, #FBBF24)' : 
+                            'linear-gradient(to right, #EF4444, #F87171)',
+                          borderRadius: '9999px',
+                          transition: 'width 0.8s ease-in-out'
+                        }}
+                      />
+                        </div>
+                    
+                    {/* Feedback message */}
+                    <div style={{
+                      padding: '1rem',
+                      backgroundColor: 'white',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #E5E7EB'
+                    }}>
+                      <p style={{
+                        fontSize: '0.95rem',
+                        fontWeight: '500',
+                        color: '#4B5563',
+                        marginBottom: '0.5rem'
+                      }}>
+                        {feedback.message}
+                      </p>
+                      
+                      {/* Show transcript */}
+                      {feedback.transcription && (
+                        <div style={{
+                          marginTop: '0.75rem',
+                          padding: '0.75rem',
+                          backgroundColor: '#F9FAFB',
+                          borderRadius: '0.375rem',
+                          border: '1px dashed #D1D5DB'
+                        }}>
+                          <p style={{
+                            fontSize: '0.85rem',
+                            color: '#6B7280',
+                            margin: 0,
+                            fontStyle: 'italic'
+                          }}>
+                            "<span style={{ color: '#4B5563', fontWeight: '500' }}>{feedback.transcription}</span>"
+                          </p>
+                      </div>
+                    )}
+                  </div>
+                    
+                    {/* Suggestions list */}
+                    {feedback.suggestions.length > 0 && (
+                      <div style={{
+                        marginTop: '0.5rem'
+                      }}>
+                        <h4 style={{
+                          fontSize: '0.9rem',
+                          fontWeight: '600',
+                          color: '#4B5563',
+                          marginBottom: '0.5rem'
+                        }}>
+                          Tips for improvement:
+                        </h4>
+                        <ul style={{
+                          padding: '0 0 0 1.25rem',
+                          margin: 0,
+                          fontSize: '0.85rem',
+                          color: '#6B7280'
+                        }}>
+                          {feedback.suggestions.map((suggestion, index) => (
+                            <li key={index} style={{ marginBottom: '0.25rem' }}>{suggestion}</li>
+                          ))}
+                        </ul>
+                  </div>
+                )}
+                
+                    {/* Action buttons */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginTop: '1rem'
+                    }}>
+                      <button
+                        onClick={() => handlePlayButtonClick()}
+                        disabled={isPlaying || isRecording}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: 'white',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '0.375rem',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          color: '#3B82F6',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <RepeatIcon style={{ width: '1rem', height: '1rem' }} />
+                        Listen Again
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setFeedback(null);
+                          setRecordingComplete(false);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: 'white',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '0.375rem',
+                          fontSize: '0.875rem',
+                          fontWeight: '500',
+                          color: '#3B82F6',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <RefreshCw style={{ width: '1rem', height: '1rem' }} />
+                        Try Again
+                      </button>
+                    </div>
+                    </div>
+                  </div>
+                )}
+                
               {loadingAnalysis && (
                 <div style={{
                   display: 'flex',
@@ -993,9 +1248,9 @@ export default function RepeatAfterMePage() {
                   <p style={{ fontSize: '0.875rem', color: '#4B5563' }}>
                     Analyzing your speech...
                   </p>
-                </div>
-              )}
-            </div>
+                        </div>
+                )}
+              </div>
           </div>
 
           {/* Card Footer */}
@@ -1057,7 +1312,7 @@ export default function RepeatAfterMePage() {
               Next
               <ChevronRight style={{ width: '1rem', height: '1rem' }} />
             </button>
-          </div>
+              </div>
         </div>
 
         {/* Tips Container */}
@@ -1196,7 +1451,7 @@ export default function RepeatAfterMePage() {
                 </li>
               </>
             )}
-          </ul>
+              </ul>
         </div>
       </main>
 

@@ -44,3 +44,125 @@
 4.  Monitor performance especially for real-time TTS and ASR responses to ensure low latency is maintained. (Project Outline: Key Requirements - Latency, ASR Accuracy)
 5.  Finalize documentation for future maintenance and potential enhancements such as integrating OpenAI in later stages. (Project Outline: AI Integration - Future Enhancements)
 6.  **Validation**: Conduct end-to-end user testing focusing on accessibility (kid-friendly design, mobile responsiveness) and compliance with GDPR/COPPA guidelines.
+
+## Phase X: Admin Achievements Page Implementation Plan
+
+### 1. Page Structure & Routing
+- File Location: Create a new file at `app/admin/achievements/page.tsx` for the main achievements admin page.
+- Layout: The page will automatically use `app/admin/layout.tsx` for consistent admin navigation and header.
+
+### 2. UI/UX Design
+- Header: Display a clear page title, e.g., "Manage Achievements".
+- Achievements Table/List: Show a table or card list of all achievements with columns for:
+  - Name/Title
+  - Description
+  - Icon/Badge
+  - Criteria (how to earn)
+  - Actions (Edit/Delete)
+- Add Achievement Button: Prominently display a button to add a new achievement.
+- Edit Modal/Drawer: Use a modal or drawer for editing/creating achievements, with a form for all fields.
+- Delete Confirmation: Show a confirmation dialog before deleting an achievement.
+
+### 3. Data Management
+- Fetching Achievements: On page load, fetch all achievements from Supabase using a service function (e.g., `getAllAchievements`).
+- CRUD Operations: Implement service functions in `lib/supabase/services/achievement-service.ts`:
+  - `getAllAchievements()`
+  - `getAchievementById(id)`
+  - `createAchievement(data)`
+  - `updateAchievement(id, data)`
+  - `deleteAchievement(id)`
+- Optimistic UI: Optionally, update the UI immediately on add/edit/delete for a snappy experience.
+
+### 4. Form Handling & Validation
+- Form Library: Use React Hook Form or similar for robust form state management and validation.
+- Fields:
+  - Name (required)
+  - Description (required)
+  - Icon/Badge (optional, file upload or icon picker)
+  - Criteria (required, e.g., "Complete 10 exercises")
+- Validation: Show inline errors for missing/invalid fields.
+
+### 5. Feedback & Notifications
+- Success/Error Toasts: Use a toast/notification system to inform the admin of successful or failed operations.
+- Loading States: Show spinners or skeletons while loading data or submitting forms.
+
+### 6. Access Control
+- Admin Only: Ensure only authenticated admins can access this page and perform actions.
+
+### 7. Best Practices
+- TypeScript: Use strict typing for all data and API responses.
+- Componentization: Break the page into reusable components (AchievementTable, AchievementForm, etc.).
+- Accessibility: Ensure all forms, buttons, and dialogs are accessible.
+
+### Summary of Steps
+1. Create the page file at `app/admin/achievements/page.tsx`.
+2. Design the UI: header, table/list, add/edit/delete controls.
+3. Implement Supabase service functions for achievements CRUD.
+4. Build the form for adding/editing achievements with validation.
+5. Wire up data fetching and mutations to the UI.
+6. Add feedback and loading states.
+7. Restrict access to admins only.
+8. Test thoroughly for UX and data integrity.
+
+## Phase Y: Admin Users Page Implementation Plan
+
+### 1. Page Structure & Routing
+- File Location: Create a new file at `app/admin/users/page.tsx` for the main users admin page.
+- Layout: The page will automatically use `app/admin/layout.tsx` for consistent admin navigation and header.
+
+### 2. UI/UX Design
+- Header: Display a clear page title, e.g., "Manage Users".
+- Users Table/List: Show a table or card list of all users with columns for:
+  - Name
+  - Email
+  - Role (e.g., admin, user)
+  - Status (active, suspended, etc.)
+  - Date Joined
+  - Actions (View, Edit, Delete, Suspend)
+- Add User Button: Optionally, display a button to add a new user (if your app supports admin-created users).
+- Edit Modal/Drawer: Use a modal or drawer for editing user details, with a form for all editable fields.
+- Delete/Suspend Confirmation: Show a confirmation dialog before deleting or suspending a user.
+- View Details: Optionally, allow viewing detailed user info in a modal or drawer.
+
+### 3. Data Management
+- Fetching Users: On page load, fetch all users from Supabase (or Clerk, if using Clerk for user management) using a service function (e.g., `getAllUsers`).
+- CRUD Operations: Implement service functions in `lib/supabase/services/user-service.ts` (or Clerk API integration):
+  - `getAllUsers()`
+  - `getUserById(id)`
+  - `updateUser(id, data)`
+  - `deleteUser(id)`
+  - `suspendUser(id)` (if applicable)
+  - `createUser(data)` (if admin can create users)
+- Optimistic UI: Optionally, update the UI immediately on edit/delete/suspend for a snappy experience.
+
+### 4. Form Handling & Validation
+- Form Library: Use React Hook Form or similar for robust form state management and validation.
+- Fields:
+  - Name (required)
+  - Email (required, valid email)
+  - Role (dropdown/select)
+  - Status (dropdown/select)
+  - Any other relevant fields
+- Validation: Show inline errors for missing/invalid fields.
+
+### 5. Feedback & Notifications
+- Success/Error Toasts: Use a toast/notification system to inform the admin of successful or failed operations.
+- Loading States: Show spinners or skeletons while loading data or submitting forms.
+
+### 6. Access Control
+- Admin Only: Ensure only authenticated admins can access this page and perform actions.
+
+### 7. Best Practices
+- TypeScript: Use strict typing for all data and API responses.
+- Componentization: Break the page into reusable components (UserTable, UserForm, UserModal, etc.).
+- Accessibility: Ensure all forms, buttons, and dialogs are accessible.
+
+### Summary of Steps
+1. Create the page file at `app/admin/users/page.tsx`.
+2. Design the UI: header, table/list, add/edit/delete/suspend controls.
+3. Implement Supabase/Clerk service functions for user management.
+4. Build the form for editing user details with validation.
+5. Wire up data fetching and mutations to the UI.
+6. Add feedback and loading states.
+7. Restrict access to admins only.
+8. Test thoroughly for UX and data integrity.

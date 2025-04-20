@@ -1,6 +1,63 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+// Add GET handler to test with browser
+export async function GET() {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    // Validate env vars
+    if (!url || !key) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Missing environment variables',
+        config: {
+          url: url ? "✓ Found" : "✗ Missing",
+          key: key ? "✓ Found" : "✗ Missing"
+        }
+      }, { status: 400 });
+    }
+    
+    // Create a test client
+    const testClient = createClient(url, key);
+    
+    // Basic health check using auth.getSession() which doesn't need specific tables
+    const { error: healthError } = await testClient.auth.getSession();
+    
+    if (healthError) {
+      console.error('Supabase connection failed:', healthError);
+      return NextResponse.json({
+        success: false,
+        error: healthError.message || 'Connection failed',
+        details: healthError,
+        config: {
+          url: url.substring(0, 15) + "...",
+          key: key.substring(0, 5) + "..."
+        }
+      });
+    }
+    
+    // Skip further queries and just report success if we got this far
+    return NextResponse.json({ 
+      success: true,
+      message: "Supabase connection established successfully!",
+      config: {
+        url: url.substring(0, 15) + "...",
+        key: key.substring(0, 5) + "..."
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error testing Supabase connection:', error);
+    
+    return NextResponse.json({ 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();

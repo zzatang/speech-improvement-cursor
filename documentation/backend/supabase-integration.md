@@ -87,6 +87,58 @@ Operations for managing speech exercises:
 3. The JWT is used to authenticate requests to Supabase
 4. User operations in Supabase are tied to the Clerk user ID
 
+### Important: Clerk and Supabase Auth Integration Considerations
+
+When using Clerk for authentication with Supabase:
+
+1. **Type Mismatch Issue**: Clerk provides user IDs as text strings, while Supabase's `auth.uid()` function returns a UUID type. When creating RLS policies, you must use a type cast `::text` to properly compare these values.
+
+2. **Automatic Profile Creation**: The dashboard component has been enhanced with a fallback mechanism that automatically creates user profiles for new users when they first access the dashboard, addressing the "no rows returned" error.
+
+3. **JWT Token Exchange**: Ensure the JWT template for Supabase is properly configured in Clerk to include the correct claims that Supabase expects.
+
+## Row-Level Security (RLS) Configuration
+
+Since the application uses Clerk for authentication instead of Supabase Auth, special consideration is needed for RLS policies:
+
+### Required RLS Policies
+
+For the `user_profiles` table, the following policies should be implemented:
+
+```sql
+-- Allow users to create their own profiles
+CREATE POLICY "Users can create their own profiles"
+ON public.user_profiles
+FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid()::text = user_id);
+
+-- Allow users to read and update their own profiles
+CREATE POLICY "Users can read and update their own profiles"
+ON public.user_profiles
+FOR SELECT, UPDATE
+TO authenticated
+USING (auth.uid()::text = user_id);
+
+-- If using an anon key in the client for unauthenticated operations
+CREATE POLICY "Allow anon access for essential operations"
+ON public.user_profiles
+FOR SELECT, INSERT
+TO anon
+USING (true);
+```
+
+### Alternative Approaches
+
+For development or situations where RLS is causing integration challenges:
+
+1. **Temporarily Disable RLS**: 
+   ```sql
+   ALTER TABLE public.user_profiles DISABLE ROW LEVEL SECURITY;
+   ```
+
+2. **Service Role API Routes**: For production, consider implementing server-side API routes that use a service role key to bypass RLS for specific operations, keeping the service key secure on the server.
+
 ## Database Schema
 
 ### Tables
