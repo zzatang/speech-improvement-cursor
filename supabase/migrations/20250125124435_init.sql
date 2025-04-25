@@ -359,5 +359,20 @@ for select
 to public
 using ((requesting_user_id() = user_id));
 
+-- Admin Settings Table
+create table if not exists public.app_settings (
+    id uuid primary key default gen_random_uuid(),
+    app_name text,
+    logo_url text,
+    default_language text,
+    support_email text,
+    data jsonb,
+    created_at timestamp with time zone default timezone('utc'::text, now()),
+    updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+alter table public.app_settings enable row level security;
+-- TODO: Add RLS policy for admin-only access
+
 
 

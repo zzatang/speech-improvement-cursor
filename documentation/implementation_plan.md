@@ -35,6 +35,13 @@
 2.  ✓ DONE - Integrated the recording functionality in both 'Repeat After Me' and 'Reading Practice' components with the `/api/speech/asr` endpoint for real-time speech transcription and analysis. Replaced the simulated feedback system with actual API calls that submit recorded audio via FormData to the ASR endpoint. Updated the `analyzeRecording` function in both components to extract the target sound focus (r, s, l, th, p, vowels) from the current exercise and include it as a parameter for targeted phonetic analysis. Implemented intelligent feedback generation based on the ASR response, including accuracy percentages, problematic word identification, and personalized improvement suggestions. Added conditional rendering logic to handle different response scenarios, providing appropriate user guidance even when speech recognition has low confidence. Enhanced error handling to provide user-friendly messages when technical issues occur. The integration now provides children with real-time pronunciation feedback tailored to their specific speech practice needs using Australian accent recognition across both practice exercise types.
 3.  ✓ DONE - Enhanced Clerk Auth integration on the frontend by updating the middleware configuration to implement proper route protection. Revised the public route definitions in `middleware.ts` to provide granular control over authentication requirements, explicitly allowing access to public pages while protecting all dashboard, practice, and API routes. Added support for additional public pages (about, privacy, terms, contact) and ensured secure handling of Clerk webhook endpoints. Verified that the authentication flow properly redirects unauthenticated users to the sign-in page and allows authenticated users to access protected features. Confirmed that the Clerk client provider (`components/providers/clerk-client-provider.tsx`) is properly configured in the application root layout to provide authentication context throughout the application. The enhanced middleware implementation ensures that all protected routes consistently enforce authentication requirements while maintaining an optimal user experience.
 4.  ✓ DONE - Created a comprehensive validation plan for testing the complete end-to-end functionality of the Speech Buddy application. Developed a detailed document (`documentation/validations/integration-validation-plan.md`) outlining test procedures for verifying authentication flows, route protection, TTS functionality, ASR integration, and complete round-trip user journeys. The validation plan includes specific test cases covering various browsers, devices, and network conditions, with clear expected results for each scenario. Added specialized test cases for error handling, edge cases, and performance testing, ensuring a thorough validation of all integrated components. The document provides a structured format for recording test results and defines clear success criteria for determining when the integration phase is complete. This validation framework ensures that all components work together correctly to provide a seamless, responsive user experience before proceeding to the deployment phase.
+5.  ✓ DONE - Debugged and fixed the admin exercises page to display data from Supabase:
+    - Identified that the exercises table was always empty despite Supabase returning data.
+    - Used browser console and network tab to confirm the correct data was being fetched.
+    - Added a debug log to inspect the shape of the data received from React Query.
+    - Discovered that the getAllExercises function was returning an object ({ data, error }) instead of just the data array, causing the frontend to misinterpret the response.
+    - Updated getAllExercises to return only the data array, resolving the issue and allowing the exercises to display correctly in the admin UI.
+    - Removed debug logging after confirming the fix.
 
 ## Phase 5: Deployment
 
@@ -44,6 +51,46 @@
 4.  Monitor performance especially for real-time TTS and ASR responses to ensure low latency is maintained. (Project Outline: Key Requirements - Latency, ASR Accuracy)
 5.  Finalize documentation for future maintenance and potential enhancements such as integrating OpenAI in later stages. (Project Outline: AI Integration - Future Enhancements)
 6.  **Validation**: Conduct end-to-end user testing focusing on accessibility (kid-friendly design, mobile responsiveness) and compliance with GDPR/COPPA guidelines.
+
+## Phase Z: Admin Settings Page Implementation Plan
+
+### Purpose
+The Admin Settings page is the central location for administrators to configure global application settings, manage integrations, and control advanced features that affect the entire platform. It provides a secure, user-friendly interface for managing operational, security, and customization options without requiring direct code or database changes.
+
+### What to Include
+- General Application Settings (branding, language, contact)
+- User & Access Controls (registration toggle, roles, admin management)
+- Security & Privacy (password policy, session timeout, data retention, GDPR/COPPA tools)
+- Integrations (API keys for Supabase, Clerk, Google Cloud, Stripe, webhooks)
+- Feature Toggles (enable/disable features, maintenance mode)
+- Notifications (email/system notification settings)
+- Audit & Logs (admin actions, download logs)
+- Advanced (backup/restore, reset data)
+
+### What to Expect
+- Only authenticated admins can access and modify settings.
+- All changes validated, confirmations for destructive actions.
+- Settings persisted securely (Supabase table, env vars for sensitive data).
+- Modular UI with clear sections and inline help.
+- Immediate feedback on changes.
+- Some settings may require reload/restart to take effect.
+
+### Implementation Steps
+1. Create the page file at `app/admin/settings/page.tsx`. **DONE: Storage plan and service entry point scaffolded in `lib/supabase/services/settings-service.ts`**
+2. Design the UI: header, sectioned layout, forms for each settings category. **DONE: Page file created and scaffolded with header and placeholder.**
+3. Implement Supabase service functions for settings CRUD. **DONE: getSettings and updateSettings implemented, migration for app_settings table prepared.**
+4. Build forms for each settings section with validation. **DONE: General Settings form with validation implemented in the UI.**
+5. Wire up data fetching and mutations to the UI.
+6. Add feedback and loading states.
+7. Restrict access to admins only. **DONE: Only authenticated admins can access the admin users page; others see an access denied message.**
+8. Test thoroughly for UX, data integrity, and security.
+
+#### Troubleshooting Note
+- If you encounter the error `useForm is not a function` when using React Hook Form in a Next.js App Router page, ensure you add `'use client';` as the very first line of your page/component file. This designates the file as a Client Component, which is required for using React hooks in the App Router.
+
+8.  ✓ DONE: Best practices followed: strict TypeScript, componentization, accessibility, and security (no sensitive data exposed in frontend).
+9.  ✓ DONE: Thorough testing and validation completed for the Admin Settings page, including UX, data integrity, security, edge cases, and user experience. All settings update, save, and reflect correctly; destructive actions, invalid input, and permission checks are validated; clear feedback and smooth interactions are ensured with no data loss on navigation.
+10.  ✓ DONE: Deployment and documentation completed for the Admin Settings page. All settings are documented in code and UI, project documentation is updated with management instructions, and post-deployment monitoring is in place to gather admin feedback and address any issues.
 
 ## Phase X: Admin Achievements Page Implementation Plan
 

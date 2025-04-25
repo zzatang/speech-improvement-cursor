@@ -1,9 +1,10 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Eye, Ban } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllUsers, createUser, updateUser, deleteUser, suspendUser, enableUser, User, UserInput } from '@/lib/supabase/services/user-service';
+import { getUserProfile, getAllUsers, createUser, updateUser, deleteUser, suspendUser, enableUser, User, UserInput } from '@/lib/supabase/services/user-service';
 import UserTable from '@/components/admin/users/UserTable';
 import { toast } from 'sonner';
 import { useState } from 'react';
@@ -12,16 +13,33 @@ import UserModal from '@/components/admin/users/UserModal';
 import DeleteConfirmationDialog from '@/components/admin/users/DeleteConfirmationDialog';
 
 export default function AdminUsersPage() {
+  const { user, isLoaded } = useUser();
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
 
-  // Fetch users
+  // Fetch user profile from Supabase to get the role
+  const {
+    data: profileResult,
+    isLoading: isProfileLoading,
+    isError: isProfileError,
+    error: profileError,
+  } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: () => user?.id ? getUserProfile(user.id) : Promise.resolve({ data: null, error: null }),
+    enabled: !!user?.id,
+  });
+
+  const profile = profileResult?.data;
+  const isAdmin = profile && ((profile as any).role === 'admin');
+
+  // Always call the users query, but only enable it for admins
   const { data: users, isLoading, isError, error } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: getAllUsers,
+    enabled: !!isAdmin,
   });
 
   // Mutations
@@ -95,6 +113,26 @@ export default function AdminUsersPage() {
     setSelectedUser(null);
     setIsModalOpen(true);
   };
+
+  // UI rendering logic
+  if (!isLoaded || isProfileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user || !isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow p-8 text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h2>
+          <p className="text-gray-700">You do not have permission to view this page.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Render
   return (

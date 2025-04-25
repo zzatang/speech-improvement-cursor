@@ -12,7 +12,7 @@ export async function getAllExercises() {
       .order('created_at', { ascending: false });
     
     if (error) throw error;
-    return { data, error: null };
+    return data;
   });
 }
 
@@ -35,7 +35,7 @@ export async function getExerciseById(id: string) {
 /**
  * Save (create or update) an exercise
  */
-export async function saveExercise(exercise: SpeechExercise) {
+export async function saveExercise(exercise: Partial<SpeechExercise>) {
   return safeSupabaseCall<SpeechExercise>(async () => {
     // If exercise has an ID, update it
     if (exercise.id) {
