@@ -411,7 +411,6 @@ export default function DashboardPage() {
               <Calendar style={{ width: '1.25rem', height: '1.25rem', color: '#2563EB' }} />
               <span style={{ fontSize: '1rem' }}>
                 {streakCount !== null ? `Day ${streakCount} Streak!` : 'No Streak Yet'} 
-                (raw:{streakCount})
               </span>
             </div>
             <UserButton afterSignOutUrl="/" />
@@ -518,7 +517,7 @@ export default function DashboardPage() {
                     padding: '0.25rem 0.75rem',
                     borderRadius: '1rem'
                   }}>
-                    {progress !== null ? `${progress}%` : '0%'} (raw:{progress})
+                    {progress !== null ? `${progress}%` : '0%'}
                   </span>
                 </div>
               </div>
