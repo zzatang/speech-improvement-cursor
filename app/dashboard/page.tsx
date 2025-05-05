@@ -189,18 +189,41 @@ export default function DashboardPage() {
           setAvatarAccessories(profileData.avatar_accessories || []);
         }
         
-        // Fetch exercise history
+        // Fetch exercise history using direct data API instead of Supabase RLS
         console.log("Dashboard: Fetching user progress history...");
-        const { data: progressData } = await getUserProgress(user.id);
-        if (progressData) {
-          console.log(`Dashboard: Found ${progressData.length} progress records`);
-          // Sort by most recent first
-          const sortedProgress = [...progressData].sort((a, b) => 
-            new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-          );
-          setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
-        } else {
-          console.log("Dashboard: No progress records found");
+        try {
+          // First try with direct-data API that bypasses RLS
+          const response = await fetch(`/api/direct-data/user-progress?userId=${user.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.records && data.records.length > 0) {
+              console.log(`Dashboard: Found ${data.records.length} progress records via direct API`);
+              // Sort by most recent first
+              const sortedProgress = [...data.records].sort((a, b) => 
+                new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
+              );
+              setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
+              console.log("Dashboard: Set exercise history from direct API");
+              return;
+            }
+          }
+          
+          // If direct API fails, fallback to standard approach
+          console.log("Dashboard: Direct API failed, trying standard getUserProgress...");
+          const { data: progressData } = await getUserProgress(user.id);
+          if (progressData) {
+            console.log(`Dashboard: Found ${progressData.length} progress records via standard API`);
+            // Sort by most recent first
+            const sortedProgress = [...progressData].sort((a, b) => 
+              new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
+            );
+            setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
+          } else {
+            console.log("Dashboard: No progress records found");
+          }
+        } catch (progressError) {
+          console.error("Dashboard: Error fetching exercise history:", progressError);
+          // Failing to load history isn't critical, so we don't throw
         }
         
         // For achievements (dummy data for now)
@@ -253,15 +276,36 @@ export default function DashboardPage() {
         
         // Refresh exercise history too
         console.log("Dashboard: Manual refresh - fetching progress history...");
-        const { data: progressData } = await getUserProgress(user.id);
-        if (progressData) {
-          console.log(`Dashboard: Manual refresh - found ${progressData.length} progress records`);
-          const sortedProgress = [...progressData].sort((a, b) => 
-            new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-          );
-          setExerciseHistory(sortedProgress.slice(0, 5));
-        } else {
-          console.log("Dashboard: Manual refresh - no progress records found");
+        try {
+          // First try the direct API that bypasses RLS
+          const response = await fetch(`/api/direct-data/user-progress?userId=${user.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.records && data.records.length > 0) {
+              console.log(`Dashboard: Manual refresh - found ${data.records.length} progress records via direct API`);
+              const sortedProgress = [...data.records].sort((a, b) => 
+                new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
+              );
+              setExerciseHistory(sortedProgress.slice(0, 5));
+              return;
+            }
+          }
+          
+          // Fallback to standard approach if direct API fails
+          console.log("Dashboard: Manual refresh - direct API failed, trying standard approach...");
+          const { data: progressData } = await getUserProgress(user.id);
+          if (progressData) {
+            console.log(`Dashboard: Manual refresh - found ${progressData.length} progress records via standard approach`);
+            const sortedProgress = [...progressData].sort((a, b) => 
+              new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
+            );
+            setExerciseHistory(sortedProgress.slice(0, 5));
+          } else {
+            console.log("Dashboard: Manual refresh - no progress records found");
+          }
+        } catch (progressError) {
+          console.error("Dashboard: Manual refresh - error fetching progress history:", progressError);
+          // Non-critical error, continue
         }
       } else {
         console.log("Dashboard: Manual refresh - no profile data returned");
