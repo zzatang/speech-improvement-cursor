@@ -38,16 +38,6 @@ import {
   ShieldCheck
 } from "lucide-react";
 
-// Dummy data for progress map nodes
-const progressNodes = [
-  { id: 1, title: "R Sounds", complete: true, available: true },
-  { id: 2, title: "S Sounds", complete: true, available: true },
-  { id: 3, title: "L Sounds", complete: false, available: true },
-  { id: 4, title: "Th Sounds", complete: false, available: true },
-  { id: 5, title: "Ch Sounds", complete: false, available: false },
-  { id: 6, title: "Sh Sounds", complete: false, available: false },
-];
-
 // Dummy data for avatars
 const avatarOptions = [
   { id: 1, name: "Astro Kid", image: "/logo-icon.svg" },
@@ -1093,91 +1083,75 @@ export default function DashboardPage() {
               </div>
                 </Tabs>
           </div>
-          
-          {/* Progress Map */}
-          <div style={{
-            borderRadius: '1.5rem',
-            border: '2px dashed #3B82F6',
-            backgroundColor: 'white',
-            padding: '1.75rem',
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h3 style={{
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              marginBottom: '1.5rem',
-              textAlign: 'center',
-              color: '#2563EB',
-              textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)'
-            }}>
-              Your Speech Adventure Map
-            </h3>
-            
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}>
-              {progressNodes.map((node, index) => (
-                <div key={node.id} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '1rem',
-                  backgroundColor: node.complete ? '#F0FDF4' : node.available ? 'white' : '#F9FAFB',
-                  border: node.complete ? '2px solid #06D6A0' : node.available ? '2px solid #FFD166' : '2px solid #E5E7EB',
-                  opacity: node.available ? 1 : 0.6,
-                  transform: index % 2 === 0 ? 'rotate(-0.5deg)' : 'rotate(0.5deg)'
-                }}>
-                  <div style={{
-                    width: '2.5rem',
-                    height: '2.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '50%',
-                    backgroundColor: node.complete ? '#06D6A0' : node.available ? '#FFD166' : '#E5E7EB',
-                    color: node.complete || !node.available ? 'white' : '#2563EB',
-                    fontWeight: 'bold',
-                    fontSize: '1.25rem',
-                    animation: node.complete ? 'pulse 3s infinite ease-in-out' : 'none'
-                  }}>
-                    {node.complete ? '✓' : node.id}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontWeight: '600',
-                      fontSize: '1.1rem',
-                      color: node.available ? '#2563EB' : '#6B7280'
-                    }}>
-                      {node.title}
-                      </div>
-                    <div style={{
-                      fontSize: '0.875rem',
-                      color: '#6B7280'
-                    }}>
-                      {node.complete ? 'Completed!' : node.available ? 'Available to practice' : 'Locked - complete previous levels first'}
-                    </div>
-                  </div>
-                  {node.available && !node.complete && (
-                    <Button style={{
-                      backgroundColor: node.available ? '#3B82F6' : '#9CA3AF',
-                      color: 'white',
-                      borderRadius: '0.75rem',
-                      fontSize: '0.875rem',
-                      padding: '0.5rem 1rem'
-                    }}>
-                      Practice
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </main>
 
+      {/* Additional Navigation Links Section */}
+      <div style={{
+        maxWidth: '1200px',
+        margin: '2rem auto 0 auto',
+        padding: '1rem',
+        backgroundColor: 'white',
+        borderRadius: '0.5rem',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      }}>
+        <h3 style={{ 
+          fontSize: '1.1rem', 
+          fontWeight: 'bold', 
+          marginBottom: '1rem',
+          color: '#4B5563',
+        }}>
+          Quick Links
+        </h3>
+        
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '1rem',
+        }}>
+          <Link href="/profile" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0.5rem 1rem',
+            backgroundColor: '#EFF6FF',
+            borderRadius: '0.5rem',
+            color: '#2563EB',
+            fontWeight: '500',
+          }}>
+            <User style={{ marginRight: '0.5rem', width: '1rem', height: '1rem' }} />
+            My Profile
+          </Link>
+          
+          <Link href="/profile_test" style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0.5rem 1rem',
+            backgroundColor: '#ECFDF5',
+            borderRadius: '0.5rem',
+            color: '#059669',
+            fontWeight: '500',
+          }}>
+            <BarChart2 style={{ marginRight: '0.5rem', width: '1rem', height: '1rem' }} />
+            Test Profile Page
+          </Link>
+          
+          {user && (
+            <Link href="/admin" style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0.5rem 1rem',
+              backgroundColor: '#FEF3C7',
+              borderRadius: '0.5rem',
+              color: '#D97706',
+              fontWeight: '500',
+            }}>
+              <ShieldCheck style={{ marginRight: '0.5rem', width: '1rem', height: '1rem' }} />
+              Admin Panel
+            </Link>
+          )}
+        </div>
+      </div>
+      
       {/* Footer */}
       <footer style={{ 
         borderTop: '2px solid #EBF5FF', 
@@ -1224,19 +1198,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </footer>
-
-      {/* Admin Panel Access */}
-      {user && (
-        <div className="mt-4">
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
-          >
-            <ShieldCheck className="h-4 w-4" />
-            Admin Panel
-          </Link>
-        </div>
-      )}
     </div>
   );
 } 
