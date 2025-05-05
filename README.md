@@ -14,6 +14,7 @@ A modern web application starter template built with Next.js 14, featuring authe
 - **Payments:** [Stripe](https://stripe.com/)
 - **UI Components:** [shadcn/ui](https://ui.shadcn.com/)
 - **Development Tools:** [VS Code](https://code.visualstudio.com/) and [Cursor](https://cursor.sh/)
+- **CI/CD:** GitHub Actions with Vercel deployment
 
 ## Prerequisites
 
@@ -162,6 +163,44 @@ To optimize your development experience with this project, we recommend the foll
    - Using inline chat for context-aware coding assistance
 
 The combination of VS Code and Cursor provides an optimal development environment for this project with code completion, AI assistance, and consistent code style enforcement.
+
+## CI/CD Pipeline
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+### CI Workflow
+
+The CI workflow automatically runs on every push to the main branch and on all pull requests:
+
+- **Linting**: Ensures code follows the project's style guidelines
+- **Type Checking**: Validates TypeScript types across the codebase
+- **Building**: Verifies the application builds successfully
+
+To view the CI workflow status, check the "Actions" tab in the GitHub repository.
+
+### Deployment Workflow
+
+The deployment workflow automatically deploys the application to Vercel when changes are pushed to the main branch and the CI workflow passes:
+
+1. The CI workflow runs first to ensure code quality
+2. If CI passes, the deployment workflow:
+   - Pulls environment information from Vercel
+   - Builds the project for production
+   - Deploys the built artifacts to Vercel
+
+To deploy manually, you can still use the Vercel CLI or dashboard.
+
+### Setting Up Vercel Deployment
+
+1. Create a new project in the [Vercel Dashboard](https://vercel.com/dashboard)
+2. Link your GitHub repository
+3. Configure the environment variables in the Vercel project settings
+4. Generate a Vercel API token in your Vercel account settings
+5. Add the token as a repository secret named `VERCEL_TOKEN` in GitHub:
+   - Go to your repository → Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `VERCEL_TOKEN`
+   - Value: Your Vercel API token
 
 ## Features
 
