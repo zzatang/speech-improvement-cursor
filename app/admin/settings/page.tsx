@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '@/lib/supabase/services/settings-service';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser } from '@clerk/nextjs';
+import { useUser, useAuth } from '@clerk/nextjs';
 import { getUserProfile } from '@/lib/supabase/services/user-service';
+import { getSupabaseWithAuth } from '@/lib/supabase/getSupabaseWithAuth';
+import { CheckCircle } from 'lucide-react';
 
 // Define the form values type for general settings
 interface GeneralSettingsFormValues {
@@ -40,6 +42,7 @@ export default function AdminSettingsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isLoaded, isSignedIn, user } = useUser();
+  const { getToken } = useAuth();
 
   // Fetch user profile from Supabase to get the role
   const {
@@ -77,21 +80,41 @@ export default function AdminSettingsPage() {
 
   // Save settings mutation
   const { mutate: saveSettings, isPending: isSaving } = useMutation({
-    mutationFn: updateSettings,
+    mutationFn: async (values: GeneralSettingsFormValues) => {
+      // Log the token process
+      console.log("Getting token for Supabase");
+      const supabaseClient = await getSupabaseWithAuth(() => 
+        getToken({ template: 'supabase' }).then(token => {
+          console.log("Clerk token received:", token ? "Yes" : "No");
+          return token;
+        })
+      );
+      return updateSettings(supabaseClient, values);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast({
-        title: 'Settings saved',
-        description: 'Your changes have been saved successfully.'
+        title: 'Settings saved!',
+        description: 'Your changes have been successfully saved to the database.',
+        variant: 'default',
+        duration: 3000
       });
+      setShowSuccess(true);
+      // Hide success indicator after 3 seconds
+      setTimeout(() => setShowSuccess(false), 3000);
     },
     onError: (err) => {
       toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to save settings'
+        title: 'Error saving settings',
+        description: err instanceof Error ? err.message : 'Failed to save settings. Please try again.',
+        variant: 'destructive',
+        duration: 5000
       });
     },
   });
+
+  // Track success state to show success indicator
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const onSubmit = (values: GeneralSettingsFormValues) => {
     console.log('Submitting values:', values);
@@ -207,8 +230,27 @@ export default function AdminSettingsPage() {
               {errors.supportEmail && <p className="text-red-600 text-xs mt-1">{errors.supportEmail.message}</p>}
             </div>
             <div className="pt-2 flex gap-2">
-              <Button type="submit" className="flex-1" disabled={isSaving}>
-                {isSaving ? 'Saving...' : 'Save Settings'}
+              <Button type="submit" className="flex-1 relative" disabled={isSaving}>
+                {isSaving ? (
+                  <div className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center">
+                    {showSuccess ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                        Saved!
+                      </>
+                    ) : (
+                      'Save Settings'
+                    )}
+                  </div>
+                )}
               </Button>
               <Button type="button" variant="outline" onClick={() => reset()} disabled={isSaving}>
                 Reset

@@ -4,6 +4,7 @@ import localFont from 'next/font/local'
 import TanstackClientProvider from '@/components/providers/tanstack-client-provider'
 import ClerkClientProvider from '@/components/providers/clerk-client-provider'
 import { Inter } from 'next/font/google'
+import { SupabaseProvider } from '@/utils/supabase/context'
 
 // Load Inter as the main font
 const inter = Inter({
@@ -74,7 +75,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-background font-sans antialiased">
         <ClerkClientProvider>
           <TanstackClientProvider>
-            {children}
+            <SupabaseProvider>
+              {children}
+            </SupabaseProvider>
           </TanstackClientProvider>
         </ClerkClientProvider>
       </body>

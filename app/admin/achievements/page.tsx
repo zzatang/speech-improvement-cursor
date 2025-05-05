@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Image as ImageIcon } from "lucide-react";
+import { useUser } from '@clerk/nextjs';
+import { useQuery } from '@tanstack/react-query';
+import { getUserProfile } from '@/lib/supabase/services/user-service';
 // Placeholder for the real service import
 // import { getAllAchievements } from "@/lib/supabase/services/achievement-service";
 
@@ -34,16 +37,57 @@ const dummyAchievements: Achievement[] = [
 ];
 
 export default function AdminAchievementsPage() {
+  const { isLoaded, isSignedIn, user } = useUser();
+  
+  // Fetch user profile from Supabase to get the role
+  const {
+    data: profileResult,
+    isLoading: isProfileLoading,
+  } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: () => user?.id ? getUserProfile(user.id) : Promise.resolve({ data: null, error: null }),
+    enabled: !!user?.id,
+  });
+
+  const profile = profileResult?.data;
+  const isAdmin = profile && ((profile as any).role === 'admin');
+
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [loading, setLoading] = useState(true);
   // const [error, setError] = useState<string | null>(null);
 
   // Placeholder for fetching achievements
   useEffect(() => {
-    // Replace with: getAllAchievements().then(setAchievements).catch(...)
-    setAchievements(dummyAchievements);
+    // Only fetch if user is admin
+    if (isAdmin) {
+      // Replace with: getAllAchievements().then(setAchievements).catch(...)
+      setAchievements(dummyAchievements);
+    }
     setLoading(false);
-  }, []);
+  }, [isAdmin]);
+
+  // Add loading state check
+  if (!isLoaded || isProfileLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  // Check if the user is signed in and has admin role
+  if (!isSignedIn || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-amber-50 py-10 px-2 md:px-0">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-extrabold text-blue-800 mb-8">Manage Achievements</h1>
+          <div className="bg-white rounded-xl shadow p-8">
+            <div className="text-red-600 font-semibold">Access denied. You do not have permission to view this page.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-amber-50 py-10 px-2 md:px-0">

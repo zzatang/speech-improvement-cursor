@@ -17,7 +17,10 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Mic, Play, Square, Volume2, VolumeX, ChevronRight, Pause, RepeatIcon, RefreshCw, Trophy } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { STTResponse } from "@/lib/google/speech-to-text";
-import { saveUserProgress } from '@/lib/supabase/services/exercise-service';
+import { 
+  saveUserProgress, 
+  getExercisesByType 
+} from '@/lib/supabase/services/exercise-service';
 import { 
   upsertUserProfile, 
   updateUserProfile, 
@@ -26,6 +29,7 @@ import {
 } from '@/lib/supabase/services/user-service';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
+import { SpeechExercise } from '@/lib/supabase/types';
 
 // Extend the STTResponse interface to include the targetSoundAnalysis property
 interface ExtendedSTTResponse extends STTResponse {
@@ -37,9 +41,9 @@ interface ExtendedSTTResponse extends STTResponse {
   };
 }
 
-// Add PracticePhrase interface
+// Update PracticePhrase interface to work with Supabase data
 interface PracticePhrase {
-  id: number;
+  id: string | number;
   text: string;
   focus: string;
   difficulty: string;
@@ -87,6 +91,11 @@ export default function RepeatAfterMePage() {
   const [currentPhraseIndex, setCurrentPhraseIndex] = useState(0);
   const [practicePhrases, setPracticePhrases] = useState<PracticePhrase[]>(PRACTICE_PHRASES);
   const [loading, setLoading] = useState(true);
+  const [isLoadingExercises, setIsLoadingExercises] = useState(true);
+  
+  // Filter state
+  const [difficultyFilter, setDifficultyFilter] = useState<string | null>(null);
+  const [filteredPhrases, setFilteredPhrases] = useState<PracticePhrase[]>(PRACTICE_PHRASES);
   
   // Audio playback state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -114,7 +123,83 @@ export default function RepeatAfterMePage() {
   const { user } = useUser();
   const [streakCount, setStreakCount] = useState<number | null>(null);
   
-  const currentPhrase = practicePhrases[currentPhraseIndex];
+  // The current phrase is determined by the filtered phrases
+  // const currentPhrase = practicePhrases[currentPhraseIndex];
+  
+  // Fetch exercises from Supabase
+  useEffect(() => {
+    async function fetchExercises() {
+      try {
+        setIsLoadingExercises(true);
+        // Fetch repeat-type exercises from Supabase
+        const exercises = await getExercisesByType('repeat');
+        
+        if (exercises && exercises.data && Array.isArray(exercises.data)) {
+          // Convert Supabase exercises to the format used by this component
+          const formattedExercises: PracticePhrase[] = exercises.data.map(exercise => {
+            // Extract content based on the exercise structure
+            const content = exercise.content as any;
+            // Get the first phrase from the content.phrases array, or use a default text
+            const phraseText = content?.phrases?.length > 0 
+              ? content.phrases[0] 
+              : (typeof content?.text === 'string' ? content.text : "Practice phrase");
+            
+            // Map difficulty level to string
+            let difficultyText = "Medium";
+            if (exercise.difficulty_level === 1) difficultyText = "Easy";
+            else if (exercise.difficulty_level === 2) difficultyText = "Medium";
+            else if (exercise.difficulty_level === 3) difficultyText = "Hard";
+            
+            return {
+              id: exercise.id,
+              text: phraseText,
+              focus: content?.focus || "Speech Practice",
+              difficulty: difficultyText
+            };
+          });
+          
+          if (formattedExercises.length > 0) {
+            console.log("Loaded exercises from Supabase:", formattedExercises);
+            setPracticePhrases(formattedExercises);
+          } else {
+            console.warn("No exercises found in Supabase, using fallback data");
+          }
+        } else {
+          console.warn("Invalid response from Supabase, using fallback data");
+        }
+      } catch (error) {
+        console.error("Error loading exercises from Supabase:", error);
+      } finally {
+        setIsLoadingExercises(false);
+        setLoading(false);
+      }
+    }
+    
+    fetchExercises();
+  }, []);
+  
+  // Apply difficulty filter whenever it changes or when practice phrases change
+  useEffect(() => {
+    if (!difficultyFilter) {
+      // If no filter is set, show all phrases
+      setFilteredPhrases(practicePhrases);
+      // Reset to first phrase when filter changes
+      setCurrentPhraseIndex(0);
+      return;
+    }
+    
+    // Filter the phrases based on difficulty
+    const filtered = practicePhrases.filter(phrase => phrase.difficulty === difficultyFilter);
+    setFilteredPhrases(filtered);
+    
+    // Reset to the first phrase when filter changes
+    setCurrentPhraseIndex(0);
+    
+    console.log(`Applied filter: ${difficultyFilter}, showing ${filtered.length} phrases`);
+  }, [difficultyFilter, practicePhrases]);
+  
+  // Use filteredPhrases instead of practicePhrases for displaying and navigation
+  const currentPhrase = filteredPhrases[currentPhraseIndex] || practicePhrases[0];
   
   // Function to fetch a practice phrase from the API
   const fetchPracticePhrase = async () => {
@@ -526,13 +611,13 @@ export default function RepeatAfterMePage() {
   
   // Function to move to the next phrase
   const goToNextPhrase = () => {
-    setCurrentPhraseIndex(prev => (prev + 1) % practicePhrases.length);
+    setCurrentPhraseIndex(prev => (prev + 1) % filteredPhrases.length);
     resetExerciseState();
   };
   
   // Function to move to the previous phrase
   const goToPreviousPhrase = () => {
-    setCurrentPhraseIndex(prev => (prev - 1 + practicePhrases.length) % practicePhrases.length);
+    setCurrentPhraseIndex(prev => (prev - 1 + filteredPhrases.length) % filteredPhrases.length);
     resetExerciseState();
   };
   
@@ -608,17 +693,10 @@ export default function RepeatAfterMePage() {
       return;
     }
     
-    console.log(`Current phrase focus: "${currentPhrase.focus}"`);
+    console.log(`Playing audio for current phrase: "${currentPhrase.text}"`);
     
-    // Check if this is a sound-specific exercise by looking at the focus text
-    // We know all our practice phrases have "Sounds" in their focus
-    if (currentPhrase.focus.includes('Sounds')) {
-      console.log(`Using practice API for sound type: ${currentPhrase.focus}`);
-      fetchPracticePhrase(); // This will use the specialized practice endpoint
-    } else {
-      console.log(`Using standard TTS for: ${currentPhrase.focus}`);
-      playAudio(); // This will use the standard TTS endpoint with the predefined phrase
-    }
+    // Always use standard TTS to play the currently displayed text without changing it
+    playAudio();
   };
   
   // Fetch user profile data when component mounts
@@ -666,6 +744,10 @@ export default function RepeatAfterMePage() {
         @keyframes recording-pulse {
           0%, 100% { transform: scale(1); background-color: #EF476F; }
           50% { transform: scale(1.05); background-color: #FF6B6B; }
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
       
@@ -774,8 +856,8 @@ export default function RepeatAfterMePage() {
                 }}
                 disabled={isMuted}
               />
-          </div>
-          <UserButton afterSignOutUrl="/" />
+            </div>
+            <UserButton afterSignOutUrl="/" />
           </div>
         </div>
       </header>
@@ -811,402 +893,285 @@ export default function RepeatAfterMePage() {
             lineHeight: '1.6'
           }}>
             Listen carefully and repeat the phrase to practice your pronunciation!
-            </p>
-          </div>
-          
-          {/* Exercise Card */}
-        <div style={{
-          width: '100%',
-          maxWidth: '800px',
-          borderRadius: '1.5rem',
-          border: '2px solid #FFD166',
-          backgroundColor: 'white',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          overflow: 'hidden',
-          transform: 'rotate(0.5deg)'
-        }}>
-          {/* Card Header */}
+          </p>
+        </div>
+        
+        {/* Difficulty Filter */}
+        {!isLoadingExercises && practicePhrases.length > 0 && (
           <div style={{
-            background: 'linear-gradient(135deg, #4F46E5, #3B82F6)',
-            color: 'white',
-            padding: '1.5rem 2rem',
+            width: '100%',
+            maxWidth: '800px',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '1rem'
           }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              background: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '1rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+              border: '1px solid #e5e7eb'
             }}>
-              <div>
-                <h2 style={{
-                  fontSize: '1.5rem',
-                  fontWeight: 'bold',
+              <label style={{
+                marginRight: '0.75rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                color: '#4B5563'
+              }}>
+                Difficulty Level:
+              </label>
+              <div style={{
+                display: 'flex',
+                gap: '0.5rem'
+              }}>
+                <button
+                  onClick={() => setDifficultyFilter(null)}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    border: 'none',
+                    backgroundColor: !difficultyFilter ? '#3B82F6' : '#f3f4f6',
+                    color: !difficultyFilter ? 'white' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  All
+                </button>
+                {['Easy', 'Medium', 'Hard'].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setDifficultyFilter(level)}
+                    style={{
+                      padding: '0.375rem 0.75rem',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      border: 'none',
+                      backgroundColor: difficultyFilter === level ? '#3B82F6' : '#f3f4f6',
+                      color: difficultyFilter === level ? 'white' : '#6b7280',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Phrase counter */}
+            <div style={{
+              padding: '0.5rem 0.75rem',
+              borderRadius: '1rem',
+              backgroundColor: '#FFD166',
+              color: '#2563EB',
+              fontWeight: '600',
+              fontSize: '0.875rem',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+            }}>
+              Phrase {currentPhraseIndex + 1} of {filteredPhrases.length}
+            </div>
+          </div>
+        )}
+          
+        {/* Loading state for exercises */}
+        {isLoadingExercises ? (
+          <div style={{
+            width: '100%',
+            maxWidth: '800px',
+            padding: '2rem',
+            textAlign: 'center',
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{
+              width: '3rem',
+              height: '3rem',
+              borderRadius: '50%',
+              border: '3px solid #E5E7EB',
+              borderTopColor: '#3B82F6',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 1rem auto'
+            }}></div>
+            <p style={{ color: '#4B5563' }}>Loading speech exercises...</p>
+          </div>
+        ) : practicePhrases.length === 0 ? (
+          <div style={{
+            width: '100%',
+            maxWidth: '800px',
+            padding: '2rem',
+            textAlign: 'center',
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <p style={{ color: '#EF4444', marginBottom: '1rem' }}>No practice exercises found.</p>
+            <Link href="/dashboard" style={{
+              display: 'inline-flex',
+              alignItems: 'center', 
+              gap: '0.5rem',
+              backgroundColor: '#3B82F6',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              textDecoration: 'none'
+            }}>
+              <ArrowLeft style={{ width: '1rem', height: '1rem' }} />
+              Return to Dashboard
+            </Link>
+          </div>
+        ) : (
+          /* Exercise Card */
+          <div style={{
+            width: '100%',
+            maxWidth: '800px',
+            borderRadius: '1.5rem',
+            border: '2px solid #FFD166',
+            backgroundColor: 'white',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden',
+            transform: 'rotate(0.5deg)'
+          }}>
+            {/* Card Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #4F46E5, #3B82F6)',
+              color: 'white',
+              padding: '1.5rem 2rem',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div>
+                  <h2 style={{
+                    fontSize: '1.5rem',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    marginBottom: '0.5rem',
+                    textShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)'
+                  }}>
+                    {currentPhrase.focus}
+                  </h2>
+                  <p style={{
+                    fontSize: '1rem',
+                    opacity: '0.9'
+                  }}>
+                      Difficulty: {currentPhrase.difficulty}
+                  </p>
+                  </div>
+                <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  marginBottom: '0.5rem',
-                  textShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)'
+                  backgroundColor: '#FFD166',
+                  color: '#2563EB',
+                  fontWeight: '600',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '1rem',
+                  fontSize: '0.875rem',
+                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
                 }}>
-                  {currentPhrase.focus}
-                </h2>
-                <p style={{
-                  fontSize: '1rem',
-                  opacity: '0.9'
-                }}>
-                    Difficulty: {currentPhrase.difficulty}
-                </p>
+                  Phrase {currentPhraseIndex + 1} of {filteredPhrases.length}
                 </div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                backgroundColor: '#FFD166',
-                color: '#2563EB',
-                fontWeight: '600',
-                padding: '0.5rem 0.75rem',
-                borderRadius: '1rem',
-                fontSize: '0.875rem',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-              }}>
-                Phrase {currentPhraseIndex + 1} of {practicePhrases.length}
               </div>
             </div>
-          </div>
 
-          {/* Card Content */}
-          <div style={{ padding: '2rem' }}>
-            {/* Current Phrase Display */}
-            <div style={{
-              marginBottom: '2rem',
-              padding: '1.5rem',
-              backgroundColor: '#EFF6FF',
-              borderRadius: '1rem',
-              border: '2px dashed #3B82F6',
-              textAlign: 'center'
-            }}>
-              <p style={{
-                fontSize: '1.75rem',
-                fontWeight: '600',
-                color: '#2563EB',
-                lineHeight: '1.5'
-              }}>
-                  {currentPhrase.text}
-              </p>
-              </div>
-              
-              {/* Controls */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '1.5rem'
-            }}>
-              {/* Play Button Section */}
+            {/* Card Content */}
+            <div style={{ padding: '2rem' }}>
+              {/* Current Phrase Display */}
               <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.75rem'
+                marginBottom: '2rem',
+                padding: '1.5rem',
+                backgroundColor: '#EFF6FF',
+                borderRadius: '1rem',
+                border: '2px dashed #3B82F6',
+                textAlign: 'center'
               }}>
                 <p style={{
-                  fontSize: '1.1rem',
+                  fontSize: '1.75rem',
                   fontWeight: '600',
-                  color: '#4B5563'
-                }}>1. Listen to the phrase</p>
-                <button
-                    onClick={handlePlayButtonClick}
-                  disabled={loadingAudio}
-                  style={{
-                    width: '4rem',
-                    height: '4rem',
-                    borderRadius: '50%',
-                    backgroundColor: isPlaying ? '#06D6A0' : '#3B82F6',
-                    color: 'white',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
-                    animation: isPlaying ? 'pulse 1s infinite ease-in-out' : 'none',
-                    transition: 'all 0.2s ease'
-                  }}
-                  >
-                    {loadingAudio ? (
-                    <span style={{ fontSize: '1.25rem' }}>...</span>
-                  ) : isPlaying ? (
-                    <Pause style={{ 
-                      width: '1.75rem', 
-                      height: '1.75rem'
-                    }} />
-                  ) : (
-                    <Play style={{ 
-                      width: '1.75rem', 
-                      height: '1.75rem',
-                      marginLeft: '4px' // Slight adjustment for the play icon
-                    }} />
-                  )}
-                </button>
-                <audio ref={audioRef} className="hidden" />
+                  color: '#2563EB',
+                  lineHeight: '1.5'
+                }}>
+                    {currentPhrase.text}
+                </p>
                 </div>
                 
-              {/* Record Button Section */}
+                {/* Controls */}
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '0.75rem'
+                gap: '1.5rem'
               }}>
-                <p style={{
-                  fontSize: '1.1rem',
-                  fontWeight: '600',
-                  color: '#4B5563'
-                }}>2. Now it's your turn</p>
-                      {isRecording ? (
+                {/* Play Button Section */}
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.75rem'
+                }}>
+                  <p style={{
+                    fontSize: '1.1rem',
+                    fontWeight: '600',
+                    color: '#4B5563'
+                  }}>1. Listen to the phrase</p>
                   <div style={{
                     display: 'flex',
-                    flexDirection: 'column',
                     alignItems: 'center',
                     gap: '1rem'
                   }}>
-                    <div style={{
-                      width: '100%',
-                      height: '0.75rem',
-                      backgroundColor: '#e5e7eb',
-                      borderRadius: '9999px',
-                      overflow: 'hidden',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
-                      marginBottom: '0.5rem'
-                    }}>
-                      <div 
-                        style={{
-                          height: '100%',
-                          width: `${progress}%`,
-                          background: 'linear-gradient(to right, #4F46E5, #3B82F6)',
-                          borderRadius: '9999px',
-                          transition: 'width 0.1s linear'
-                        }}
-                      />
-                        </div>
                     <button
-                      onClick={() => {
-                        mediaRecorderRef.current?.stop();
-                        setIsRecording(false);
-                      }}
+                      onClick={handlePlayButtonClick}
+                      disabled={loadingAudio}
                       style={{
                         width: '4rem',
                         height: '4rem',
                         borderRadius: '50%',
-                        backgroundColor: '#EF476F',
+                        backgroundColor: isPlaying ? '#06D6A0' : '#3B82F6',
                         color: 'white',
                         border: 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: 'pointer',
-                        boxShadow: '0 4px 6px rgba(239, 71, 111, 0.3)',
-                        animation: 'recording-pulse 1.5s infinite',
+                        boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                        animation: isPlaying ? 'pulse 1s infinite ease-in-out' : 'none',
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      <Square style={{ width: '1.75rem', height: '1.75rem' }} />
+                      {loadingAudio ? (
+                        <span style={{ fontSize: '1.25rem' }}>...</span>
+                      ) : isPlaying ? (
+                        <Pause style={{ 
+                          width: '1.75rem', 
+                          height: '1.75rem'
+                        }} />
+                      ) : (
+                        <Play style={{ 
+                          width: '1.75rem', 
+                          height: '1.75rem',
+                          marginLeft: '4px' // Slight adjustment for the play icon
+                        }} />
+                      )}
                     </button>
-                    <p style={{
-                      fontSize: '0.875rem',
-                      color: '#4B5563'
-                    }}>
-                      Recording... Click to stop
-                    </p>
-                      </div>
-                ) : (
-                  <button
-                    onClick={() => startRecording()}
-                    disabled={isPlaying || loadingAnalysis}
-                    style={{
-                      width: '4rem',
-                      height: '4rem',
-                      borderRadius: '50%',
-                      backgroundColor: '#3B82F6',
-                      color: 'white',
-                      border: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <Mic style={{ width: '1.75rem', height: '1.75rem' }} />
-                  </button>
-                    )}
-                  </div>
-
-              {/* Feedback Section */}
-              {feedback && (
-                <div style={{
-                  width: '100%',
-                  padding: '1.5rem',
-                  backgroundColor: '#F0F9FF', // Light blue background
-                  borderRadius: '0.75rem',
-                  border: '1px solid #BFDBFE',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
-                  marginTop: '1.5rem'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '1rem'
-                  }}>
-                    {/* Score section */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginBottom: '0.5rem'
-                    }}>
-                      <h3 style={{
-                        fontSize: '1.1rem',
-                        fontWeight: '600',
-                        color: '#1E40AF',
-                        margin: 0
-                      }}>
-                        Pronunciation Assessment
-                      </h3>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        backgroundColor: '#EFF6FF',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '1rem',
-                        fontWeight: '600'
-                      }}>
-                        <Trophy style={{ width: '1rem', height: '1rem', color: '#FFD166' }} />
-                        <span style={{ color: '#2563EB' }}>
-                          {feedback.accuracy}% Score
-                    </span>
-                      </div>
-                    </div>
                     
-                    {/* Score progress bar */}
-                    <div style={{
-                      width: '100%',
-                      height: '0.75rem',
-                      backgroundColor: '#e5e7eb',
-                      borderRadius: '9999px',
-                      overflow: 'hidden',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
-                      marginBottom: '1rem'
-                    }}>
-                      <div 
-                        style={{
-                          height: '100%',
-                          width: `${feedback.accuracy}%`,
-                          background: 
-                            feedback.accuracy >= 80 ? 'linear-gradient(to right, #059669, #10B981)' : 
-                            feedback.accuracy >= 50 ? 'linear-gradient(to right, #FFD166, #FBBF24)' : 
-                            'linear-gradient(to right, #EF4444, #F87171)',
-                          borderRadius: '9999px',
-                          transition: 'width 0.8s ease-in-out'
-                        }}
-                      />
-                        </div>
-                    
-                    {/* Feedback message */}
-                    <div style={{
-                      padding: '1rem',
-                      backgroundColor: 'white',
-                      borderRadius: '0.5rem',
-                      border: '1px solid #E5E7EB'
-                    }}>
-                      <p style={{
-                        fontSize: '0.95rem',
-                        fontWeight: '500',
-                        color: '#4B5563',
-                        marginBottom: '0.5rem'
-                      }}>
-                        {feedback.message}
-                      </p>
-                      
-                      {/* Show transcript */}
-                      {feedback.transcription && (
-                        <div style={{
-                          marginTop: '0.75rem',
-                          padding: '0.75rem',
-                          backgroundColor: '#F9FAFB',
-                          borderRadius: '0.375rem',
-                          border: '1px dashed #D1D5DB'
-                        }}>
-                          <p style={{
-                            fontSize: '0.85rem',
-                            color: '#6B7280',
-                            margin: 0,
-                            fontStyle: 'italic'
-                          }}>
-                            "<span style={{ color: '#4B5563', fontWeight: '500' }}>{feedback.transcription}</span>"
-                          </p>
-                      </div>
-                    )}
-                  </div>
-                    
-                    {/* Suggestions list */}
-                    {feedback.suggestions.length > 0 && (
-                      <div style={{
-                        marginTop: '0.5rem'
-                      }}>
-                        <h4 style={{
-                          fontSize: '0.9rem',
-                          fontWeight: '600',
-                          color: '#4B5563',
-                          marginBottom: '0.5rem'
-                        }}>
-                          Tips for improvement:
-                        </h4>
-                        <ul style={{
-                          padding: '0 0 0 1.25rem',
-                          margin: 0,
-                          fontSize: '0.85rem',
-                          color: '#6B7280'
-                        }}>
-                          {feedback.suggestions.map((suggestion, index) => (
-                            <li key={index} style={{ marginBottom: '0.25rem' }}>{suggestion}</li>
-                          ))}
-                        </ul>
-                  </div>
-                )}
-                
-                    {/* Action buttons */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginTop: '1rem'
-                    }}>
+                    {/* Generate New Practice button */}
+                    {currentPhrase.focus.includes('Sounds') && (
                       <button
-                        onClick={() => handlePlayButtonClick()}
-                        disabled={isPlaying || isRecording}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          padding: '0.5rem 1rem',
-                          backgroundColor: 'white',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '0.375rem',
-                          fontSize: '0.875rem',
-                          fontWeight: '500',
-                          color: '#3B82F6',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <RepeatIcon style={{ width: '1rem', height: '1rem' }} />
-                        Listen Again
-                      </button>
-                      
-                      <button
-                        onClick={() => {
-                          setFeedback(null);
-                          setRecordingComplete(false);
-                        }}
+                        onClick={() => fetchPracticePhrase()}
+                        disabled={loadingAudio || isPlaying}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -1222,237 +1187,438 @@ export default function RepeatAfterMePage() {
                         }}
                       >
                         <RefreshCw style={{ width: '1rem', height: '1rem' }} />
-                        Try Again
+                        Generate New Phrase
                       </button>
-                    </div>
-                    </div>
+                    )}
                   </div>
-                )}
-                
-              {loadingAnalysis && (
+                  <audio ref={audioRef} className="hidden" />
+                  </div>
+                  
+                {/* Record Button Section */}
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.75rem',
-                  marginTop: '1rem'
+                  gap: '0.75rem'
                 }}>
-                  <div style={{
-                    width: '3rem',
-                    height: '3rem',
-                    borderRadius: '50%',
-                    border: '3px solid #E5E7EB',
-                    borderTopColor: '#3B82F6',
-                    animation: 'spin 1s linear infinite'
-                  }}></div>
-                  <p style={{ fontSize: '0.875rem', color: '#4B5563' }}>
-                    Analyzing your speech...
-                  </p>
+                  <p style={{
+                    fontSize: '1.1rem',
+                    fontWeight: '600',
+                    color: '#4B5563'
+                  }}>2. Now it's your turn</p>
+                        {isRecording ? (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '1rem'
+                    }}>
+                      <div style={{
+                        width: '100%',
+                        height: '0.75rem',
+                        backgroundColor: '#e5e7eb',
+                        borderRadius: '9999px',
+                        overflow: 'hidden',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                        marginBottom: '0.5rem'
+                      }}>
+                        <div 
+                          style={{
+                            height: '100%',
+                            width: `${progress}%`,
+                            background: 'linear-gradient(to right, #4F46E5, #3B82F6)',
+                            borderRadius: '9999px',
+                            transition: 'width 0.1s linear'
+                          }}
+                        />
+                          </div>
+                      <button
+                        onClick={() => {
+                          mediaRecorderRef.current?.stop();
+                          setIsRecording(false);
+                        }}
+                        style={{
+                          width: '4rem',
+                          height: '4rem',
+                          borderRadius: '50%',
+                          backgroundColor: '#EF476F',
+                          color: 'white',
+                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 6px rgba(239, 71, 111, 0.3)',
+                          animation: 'recording-pulse 1.5s infinite',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <Square style={{ width: '1.75rem', height: '1.75rem' }} />
+                      </button>
+                      <p style={{
+                        fontSize: '0.875rem',
+                        color: '#4B5563'
+                      }}>
+                        Recording... Click to stop
+                      </p>
                         </div>
-                )}
-              </div>
+                  ) : (
+                    <button
+                      onClick={() => startRecording()}
+                      disabled={isPlaying || loadingAnalysis}
+                      style={{
+                        width: '4rem',
+                        height: '4rem',
+                        borderRadius: '50%',
+                        backgroundColor: '#3B82F6',
+                        color: 'white',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 6px rgba(59, 130, 246, 0.3)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Mic style={{ width: '1.75rem', height: '1.75rem' }} />
+                    </button>
+                      )}
+                    </div>
+
+                {/* Feedback Section */}
+                {feedback && (
+                  <div style={{
+                    width: '100%',
+                    padding: '1.5rem',
+                    backgroundColor: '#F0F9FF', // Light blue background
+                    borderRadius: '0.75rem',
+                    border: '1px solid #BFDBFE',
+                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                    marginTop: '1.5rem'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem'
+                    }}>
+                      {/* Score section */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '0.5rem'
+                      }}>
+                        <h3 style={{
+                          fontSize: '1.1rem',
+                          fontWeight: '600',
+                          color: '#1E40AF',
+                          margin: 0
+                        }}>
+                          Pronunciation Assessment
+                        </h3>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          backgroundColor: '#EFF6FF',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '1rem',
+                          fontWeight: '600'
+                        }}>
+                          <Trophy style={{ width: '1rem', height: '1rem', color: '#FFD166' }} />
+                          <span style={{ color: '#2563EB' }}>
+                            {feedback.accuracy}% Score
+                      </span>
+                        </div>
+                      </div>
+                      
+                      {/* Score progress bar */}
+                      <div style={{
+                        width: '100%',
+                        height: '0.75rem',
+                        backgroundColor: '#e5e7eb',
+                        borderRadius: '9999px',
+                        overflow: 'hidden',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)',
+                        marginBottom: '1rem'
+                      }}>
+                        <div 
+                          style={{
+                            height: '100%',
+                            width: `${feedback.accuracy}%`,
+                            background: 
+                              feedback.accuracy >= 80 ? 'linear-gradient(to right, #059669, #10B981)' : 
+                              feedback.accuracy >= 50 ? 'linear-gradient(to right, #FFD166, #FBBF24)' : 
+                              'linear-gradient(to right, #EF4444, #F87171)',
+                            borderRadius: '9999px',
+                            transition: 'width 0.8s ease-in-out'
+                          }}
+                        />
+                          </div>
+                      
+                      {/* Feedback message */}
+                      <div style={{
+                        padding: '1rem',
+                        backgroundColor: 'white',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #E5E7EB'
+                      }}>
+                        <p style={{
+                          fontSize: '0.95rem',
+                          fontWeight: '500',
+                          color: '#4B5563',
+                          marginBottom: '0.5rem'
+                        }}>
+                          {feedback.message}
+                        </p>
+                        
+                        {/* Show transcript */}
+                        {feedback.transcription && (
+                          <div style={{
+                            marginTop: '0.75rem',
+                            padding: '0.75rem',
+                            backgroundColor: '#F9FAFB',
+                            borderRadius: '0.375rem',
+                            border: '1px dashed #D1D5DB'
+                          }}>
+                            <p style={{
+                              fontSize: '0.85rem',
+                              color: '#6B7280',
+                              margin: 0,
+                              fontStyle: 'italic'
+                            }}>
+                              "<span style={{ color: '#4B5563', fontWeight: '500' }}>{feedback.transcription}</span>"
+                            </p>
+                        </div>
+                      )}
+                    </div>
+                      
+                      {/* Suggestions list */}
+                      {feedback.suggestions.length > 0 && (
+                        <div style={{
+                          marginTop: '0.5rem'
+                        }}>
+                          <h4 style={{
+                            fontSize: '0.9rem',
+                            fontWeight: '600',
+                            color: '#4B5563',
+                            marginBottom: '0.5rem'
+                          }}>
+                            Tips for improvement:
+                          </h4>
+                          <ul style={{
+                            padding: '0 0 0 1.25rem',
+                            margin: 0,
+                            fontSize: '0.85rem',
+                            color: '#6B7280'
+                          }}>
+                            {feedback.suggestions.map((suggestion, index) => (
+                              <li key={index} style={{ marginBottom: '0.25rem' }}>{suggestion}</li>
+                            ))}
+                          </ul>
+                    </div>
+                  )}
+                  
+                      {/* Action buttons */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginTop: '1rem'
+                      }}>
+                        <button
+                          onClick={() => handlePlayButtonClick()}
+                          disabled={isPlaying || isRecording}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem 1rem',
+                            backgroundColor: 'white',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.375rem',
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            color: '#3B82F6',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <RepeatIcon style={{ width: '1rem', height: '1rem' }} />
+                          Listen Again
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setFeedback(null);
+                            setRecordingComplete(false);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem 1rem',
+                            backgroundColor: 'white',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '0.375rem',
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            color: '#3B82F6',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <RefreshCw style={{ width: '1rem', height: '1rem' }} />
+                          Try Again
+                        </button>
+                      </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                {loadingAnalysis && (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    marginTop: '1rem'
+                  }}>
+                    <div style={{
+                      width: '3rem',
+                      height: '3rem',
+                      borderRadius: '50%',
+                      border: '3px solid #E5E7EB',
+                      borderTopColor: '#3B82F6',
+                      animation: 'spin 1s linear infinite'
+                    }}></div>
+                    <p style={{ fontSize: '0.875rem', color: '#4B5563' }}>
+                      Analyzing your speech...
+                    </p>
+                          </div>
+                  )}
+                </div>
+            </div>
+
+            {/* Card Footer */}
+            <div style={{
+              padding: '1.5rem 2rem',
+              borderTop: '2px solid #EFF6FF',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <button
+                onClick={() => {
+                  if (currentPhraseIndex > 0) {
+                    setCurrentPhraseIndex(currentPhraseIndex - 1);
+                    resetExerciseState();
+                  }
+                }}
+                disabled={currentPhraseIndex === 0}
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  border: 'none',
+                  backgroundColor: currentPhraseIndex === 0 ? '#F3F4F6' : '#EFF6FF',
+                  color: currentPhraseIndex === 0 ? '#9CA3AF' : '#2563EB',
+                  fontWeight: '600',
+                  cursor: currentPhraseIndex === 0 ? 'default' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: currentPhraseIndex === 0 ? 'none' : '0 2px 4px rgba(59, 130, 246, 0.2)'
+                }}
+              >
+                <ArrowLeft style={{ width: '1rem', height: '1rem' }} />
+                Previous
+              </button>
+              
+              <button
+                onClick={() => {
+                  if (currentPhraseIndex < filteredPhrases.length - 1) {
+                    setCurrentPhraseIndex(currentPhraseIndex + 1);
+                    resetExerciseState();
+                  }
+                }}
+                disabled={currentPhraseIndex === filteredPhrases.length - 1}
+                style={{
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '0.75rem',
+                  border: 'none',
+                  backgroundColor: currentPhraseIndex === filteredPhrases.length - 1 ? '#F3F4F6' : '#3B82F6',
+                  color: currentPhraseIndex === filteredPhrases.length - 1 ? '#9CA3AF' : 'white',
+                  fontWeight: '600',
+                  cursor: currentPhraseIndex === filteredPhrases.length - 1 ? 'default' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  boxShadow: currentPhraseIndex === filteredPhrases.length - 1 ? 'none' : '0 4px 6px rgba(59, 130, 246, 0.3)'
+                }}
+              >
+                Next
+                <ChevronRight style={{ width: '1rem', height: '1rem' }} />
+              </button>
+                </div>
           </div>
+        )}
 
-          {/* Card Footer */}
+        {/* Tips Container - only show when exercises are loaded and available */}
+        {!isLoadingExercises && practicePhrases.length > 0 && (
           <div style={{
-            padding: '1.5rem 2rem',
-            borderTop: '2px solid #EFF6FF',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            width: '100%',
+            maxWidth: '800px',
+            marginTop: '2rem',
+            borderRadius: '1.5rem',
+            border: '2px dashed #06D6A0',
+            backgroundColor: 'white',
+            padding: '1.5rem',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+            transform: 'rotate(-0.5deg)'
           }}>
-            <button
-              onClick={() => {
-                if (currentPhraseIndex > 0) {
-                  setCurrentPhraseIndex(currentPhraseIndex - 1);
-                  resetExerciseState();
-                }
-              }}
-              disabled={currentPhraseIndex === 0}
-              style={{
-                padding: '0.75rem 1.25rem',
-                borderRadius: '0.75rem',
-                border: 'none',
-                backgroundColor: currentPhraseIndex === 0 ? '#F3F4F6' : '#EFF6FF',
-                color: currentPhraseIndex === 0 ? '#9CA3AF' : '#2563EB',
-                fontWeight: '600',
-                cursor: currentPhraseIndex === 0 ? 'default' : 'pointer',
+            <h3 style={{
+              fontSize: '1.25rem',
+              fontWeight: 'bold',
+              marginBottom: '1rem',
+              color: '#059669',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              textShadow: '1px 1px 0px rgba(5, 150, 105, 0.1)'
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>💡</span> Tips for Practice
+            </h3>
+            <ul style={{
+              listStyleType: 'none',
+              padding: '0',
+              margin: '0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              <li style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: '0.5rem',
-                boxShadow: currentPhraseIndex === 0 ? 'none' : '0 2px 4px rgba(59, 130, 246, 0.2)'
-              }}
-            >
-              <ArrowLeft style={{ width: '1rem', height: '1rem' }} />
-              Previous
-            </button>
-            
-            <button
-              onClick={() => {
-                if (currentPhraseIndex < practicePhrases.length - 1) {
-                  setCurrentPhraseIndex(currentPhraseIndex + 1);
-                  resetExerciseState();
-                }
-              }}
-              disabled={currentPhraseIndex === practicePhrases.length - 1}
-              style={{
-                padding: '0.75rem 1.25rem',
-                borderRadius: '0.75rem',
-                border: 'none',
-                backgroundColor: currentPhraseIndex === practicePhrases.length - 1 ? '#F3F4F6' : '#3B82F6',
-                color: currentPhraseIndex === practicePhrases.length - 1 ? '#9CA3AF' : 'white',
-                fontWeight: '600',
-                cursor: currentPhraseIndex === practicePhrases.length - 1 ? 'default' : 'pointer',
+                fontSize: '1rem',
+                color: '#4B5563',
+                lineHeight: '1.5'
+              }}>
+                <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
+                Listen to the audio carefully before attempting to repeat.
+              </li>
+              <li style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: '0.5rem',
-                boxShadow: currentPhraseIndex === practicePhrases.length - 1 ? 'none' : '0 4px 6px rgba(59, 130, 246, 0.3)'
-              }}
-            >
-              Next
-              <ChevronRight style={{ width: '1rem', height: '1rem' }} />
-            </button>
-              </div>
-        </div>
-
-        {/* Tips Container */}
-        <div style={{
-          width: '100%',
-          maxWidth: '800px',
-          marginTop: '2rem',
-          borderRadius: '1.5rem',
-          border: '2px dashed #06D6A0',
-          backgroundColor: 'white',
-          padding: '1.5rem',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
-          transform: 'rotate(-0.5deg)'
-        }}>
-          <h3 style={{
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            marginBottom: '1rem',
-            color: '#059669',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            textShadow: '1px 1px 0px rgba(5, 150, 105, 0.1)'
-          }}>
-            <span style={{ fontSize: '1.5rem' }}>💡</span> Tips for "{currentPhrase.focus}"
-          </h3>
-          <ul style={{
-            listStyleType: 'none',
-            padding: '0',
-            margin: '0',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem'
-          }}>
-            {currentPhrase.focus === "R Sounds" && (
-              <>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
-                  Pull the tip of your tongue back slightly without touching the roof of your mouth.
-                </li>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
-                  Round your lips a little when making the 'r' sound.
-                </li>
-              </>
-            )}
-            {currentPhrase.focus === "S Sounds" && (
-              <>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
-                  Place the tip of your tongue just behind your top front teeth.
-                </li>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
-                  Let the air flow over the center of your tongue.
-                </li>
-              </>
-            )}
-            {currentPhrase.focus === "L Sounds" && (
-              <>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
-                  Touch the tip of your tongue to the ridge behind your upper front teeth.
-                </li>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
-                  Let the sound come out around the sides of your tongue.
-                </li>
-              </>
-            )}
-            {currentPhrase.focus === "Th Sounds" && (
-              <>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
-                  Place the tip of your tongue between your upper and lower front teeth.
-                </li>
-                <li style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '0.5rem',
-                  fontSize: '1rem',
-                  color: '#4B5563',
-                  lineHeight: '1.5'
-                }}>
-                  <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
-                  Gently blow air out of your mouth to make the 'th' sound.
-                </li>
-              </>
-            )}
-              </ul>
-        </div>
+                fontSize: '1rem',
+                color: '#4B5563',
+                lineHeight: '1.5'
+              }}>
+                <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+                Practice speaking slowly and clearly for better results.
+              </li>
+            </ul>
+          </div>
+        )}
       </main>
 
       {/* Footer */}

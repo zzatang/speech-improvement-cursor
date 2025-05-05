@@ -1,5 +1,6 @@
 import { supabase, safeSupabaseCall } from '../client';
 import { SpeechExercise, UserProgress } from '../types';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Get all speech exercises
@@ -34,31 +35,64 @@ export async function getExerciseById(id: string) {
 
 /**
  * Save (create or update) an exercise
+ * @param exercise The exercise data to save
+ * @param client Optional Supabase client with authentication
  */
-export async function saveExercise(exercise: Partial<SpeechExercise>) {
+export async function saveExercise(
+  exercise: Partial<SpeechExercise>, 
+  client?: SupabaseClient
+) {
+  // Use provided client or default to anonymous client
+  const supabaseClient = client || supabase;
+  
   return safeSupabaseCall<SpeechExercise>(async () => {
-    // If exercise has an ID, update it
-    if (exercise.id) {
-      const { data, error } = await supabase
-        .from('speech_exercises')
-        .update(exercise)
-        .eq('id', exercise.id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return { data, error: null };
-    } 
-    // Otherwise create a new exercise
-    else {
-      const { data, error } = await supabase
-        .from('speech_exercises')
-        .insert(exercise)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return { data, error: null };
+    console.log('Saving exercise with client:', !!client ? 'Authenticated' : 'Default');
+    
+    try {
+      // If exercise has an ID, update it
+      if (exercise.id) {
+        const { data, error } = await supabaseClient
+          .from('speech_exercises')
+          .update(exercise)
+          .eq('id', exercise.id)
+          .select()
+          .single();
+        
+        if (error) {
+          console.error('Error updating exercise:', error);
+          
+          // Check if this is an RLS/auth issue
+          if (error.code === '42501' || error.message.includes('policy')) {
+            throw new Error('Permission denied: You need to be authenticated with the correct role to update exercises. Please sign in or check your permissions.');
+          }
+          
+          throw error;
+        }
+        return { data, error: null };
+      } 
+      // Otherwise create a new exercise
+      else {
+        const { data, error } = await supabaseClient
+          .from('speech_exercises')
+          .insert(exercise)
+          .select()
+          .single();
+        
+        if (error) {
+          console.error('Error inserting exercise:', error);
+          
+          // Check if this is an RLS/auth issue
+          if (error.code === '42501' || error.message.includes('policy')) {
+            throw new Error('Permission denied: You need to be authenticated with the correct role to add exercises. Please sign in or check your permissions.');
+          }
+          
+          throw error;
+        }
+        return { data, error: null };
+      }
+    } catch (err) {
+      console.error('SaveExercise failed:', err);
+      throw err;
     }
   });
 }

@@ -8,6 +8,7 @@ import {
   deleteExercise,
   getExerciseById
 } from '@/lib/supabase/services/exercise-service';
+import { getUserProfile } from '@/lib/supabase/services/user-service';
 import { SpeechExercise } from '@/lib/supabase/types';
 import Link from 'next/link';
 import { 
@@ -21,26 +22,56 @@ import {
 } from 'lucide-react';
 import ExerciseTable from '@/components/admin/exercises/ExerciseTable';
 import ExerciseModal from '@/components/admin/exercises/ExerciseModal';
+import ExerciseViewModal from '@/components/admin/exercises/ExerciseViewModal';
 import DeleteConfirmationDialog from '@/components/admin/exercises/DeleteConfirmationDialog';
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExerciseFormValues } from '@/components/admin/exercises/ExerciseForm';
 import { toast } from 'sonner';
+import { useSupabase } from '@/utils/supabase/context';
+import React from 'react';
 
 export default function ExercisesAdminPage() {
-  const { user } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
   const queryClient = useQueryClient();
+  const supabaseClient = useSupabase();
+
+  // Fetch user profile from Supabase to get the role
+  const {
+    data: profileResult,
+    isLoading: isProfileLoading,
+  } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: () => user?.id ? getUserProfile(user.id) : Promise.resolve({ data: null, error: null }),
+    enabled: !!user?.id,
+  });
+
+  const profile = profileResult?.data;
+  const isAdmin = profile && ((profile as any).role === 'admin');
 
   // React Query: Fetch exercises
   const { data: exercises = [], isLoading, isError, error } = useQuery({
     queryKey: ['exercises'],
     queryFn: getAllExercises,
-    enabled: !!user,
+    enabled: !!isAdmin,
   });
 
   // Mutations
   const saveMutation = useMutation({
-    mutationFn: saveExercise,
+    mutationFn: (exerciseData: Partial<SpeechExercise>) => {
+      if (!isSignedIn) {
+        return Promise.reject(new Error("You must be signed in to create or edit exercises"));
+      }
+      if (!supabaseClient) {
+        return Promise.reject(new Error("Supabase client not available. Please refresh the page."));
+      }
+      
+      // Log the clerk session status
+      console.log("Attempting to save exercise with auth status:", isSignedIn ? "Signed in" : "Not signed in");
+      
+      // Use the authenticated client for the operation
+      return saveExercise(exerciseData, supabaseClient);
+    },
     onSuccess: (_data, _variables, _context) => {
       if (selectedExercise && selectedExercise.id) {
         toast.success('Exercise updated');
@@ -51,7 +82,20 @@ export default function ExercisesAdminPage() {
       setIsModalOpen(false);
       setSelectedExercise(null);
     },
-    onError: (err: any) => toast.error(err.message || 'Failed to save exercise'),
+    onError: (err: any) => {
+      console.error("Error saving exercise:", err);
+      
+      // Give more specific guidance if it's likely a JWT template issue
+      if (err.message && (
+        err.message.includes("policy") || 
+        err.message.includes("permission") || 
+        err.message.includes("row level security")
+      )) {
+        toast.error("Authentication error: Make sure you've configured the Clerk JWT template for Supabase as described in the documentation.");
+      } else {
+        toast.error(err.message || 'Failed to save exercise');
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -83,8 +127,23 @@ export default function ExercisesAdminPage() {
   const [contentText, setContentText] = useState('{}');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<SpeechExercise | null>(null);
+  
+  // Add filter state
+  const [difficultyFilter, setDifficultyFilter] = useState<number | null>(null);
+
+  // Filter exercises based on selected difficulty
+  const filteredExercises = React.useMemo(() => {
+    const exerciseArray = Array.isArray(exercises) ? exercises : [];
+    
+    if (!difficultyFilter) {
+      return exerciseArray;
+    }
+    
+    return exerciseArray.filter((exercise: SpeechExercise) => exercise.difficulty_level === difficultyFilter);
+  }, [exercises, difficultyFilter]);
 
   // Update contentText when currentExercise changes
   useEffect(() => {
@@ -105,65 +164,39 @@ export default function ExercisesAdminPage() {
     setSelectedExercise(null);
     setIsModalOpen(true);
   };
-  const handleView = (exercise: SpeechExercise) => setSelectedExercise(exercise);
+  
+  const handleView = (exercise: SpeechExercise) => {
+    setSelectedExercise(exercise);
+    setIsViewModalOpen(true);
+  };
+  
   const handleEdit = (exercise: SpeechExercise) => {
     setSelectedExercise(exercise);
     setIsModalOpen(true);
   };
+  
   const handleDelete = (exercise: SpeechExercise) => {
     setSelectedExercise(exercise);
     setIsDeleteDialogOpen(true);
   };
 
-  if (!user) {
+  // Handle loading state
+  if (!isLoaded || isProfileLoading) {
     return (
-      <div style={{
-        height: '100%',
-        minHeight: '500px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{
-          width: '400px',
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-          overflow: 'hidden'
-        }}>
-          <div style={{
-            padding: '1.5rem',
-            borderBottom: '1px solid #e5e7eb'
-          }}>
-            <h3 style={{
-              fontSize: '1.25rem',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              margin: 0
-            }}>Authentication Required</h3>
-          </div>
-          <div style={{
-            padding: '1.5rem',
-            textAlign: 'center'
-          }}>
-            <p style={{
-              marginBottom: '1rem',
-              color: '#6b7280'
-            }}>Please sign in to access the admin panel</p>
-            <Link href="/sign-in" style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0.5rem 1rem',
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              borderRadius: '0.375rem',
-              fontWeight: '500',
-              fontSize: '0.875rem',
-              textDecoration: 'none'
-            }}>
-              Sign In
-            </Link>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">Loading...</div>
+      </div>
+    );
+  }
+
+  // Check if the user is signed in and has admin role
+  if (!isSignedIn || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-amber-50 py-10 px-4">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-extrabold text-blue-800 mb-8">Manage Exercises</h1>
+          <div className="bg-white rounded-xl shadow p-8">
+            <div className="text-red-600 font-semibold">Access denied. You do not have permission to view this page.</div>
           </div>
         </div>
       </div>
@@ -175,10 +208,48 @@ export default function ExercisesAdminPage() {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-extrabold text-blue-800 tracking-tight drop-shadow-sm">Manage Exercises</h1>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg rounded-lg px-4 py-2 flex items-center gap-2 transition" onClick={handleAdd}>
-            <Plus className="w-5 h-5" /> Add Exercise
-          </Button>
+          <div className="flex items-center gap-4">
+            {/* Filter component placed next to Add button for visibility */}
+            {!isLoading && Array.isArray(exercises) && exercises.length > 0 && (
+              <div className="flex items-center gap-2">
+                <select 
+                  id="difficulty-filter"
+                  value={difficultyFilter || 0}
+                  onChange={(e) => setDifficultyFilter(parseInt(e.target.value) || null)}
+                  className="px-3 py-2 h-10 border rounded-md border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700 shadow-sm text-sm"
+                >
+                  <option value={0}>All Difficulty Levels</option>
+                  <option value={1}>Level 1</option>
+                  <option value={2}>Level 2</option>
+                  <option value={3}>Level 3</option>
+                  <option value={4}>Level 4</option>
+                  <option value={5}>Level 5</option>
+                </select>
+                {difficultyFilter && (
+                  <button 
+                    onClick={() => setDifficultyFilter(null)}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg rounded-lg px-4 py-2 flex items-center gap-2 transition" onClick={handleAdd}>
+              <Plus className="w-5 h-5" /> Add Exercise
+            </Button>
+          </div>
         </div>
+        
+        {/* Show filtered count when filter is active */}
+        {!isLoading && difficultyFilter && Array.isArray(exercises) && exercises.length > 0 && (
+          <div className="mb-4 p-2 bg-blue-50 border border-blue-100 rounded-md text-center">
+            <span className="text-sm text-blue-700">
+              Showing {filteredExercises.length} of {exercises.length} exercises (Difficulty Level: {difficultyFilter})
+            </span>
+          </div>
+        )}
+        
         {isLoading && (
           <div className="flex justify-center items-center py-12">
             <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -193,8 +264,9 @@ export default function ExercisesAdminPage() {
             <p className="text-sm">Add your first exercise to get started!</p>
           </div>
         )}
+        
         <ExerciseTable
-          exercises={Array.isArray(exercises) ? exercises : []}
+          exercises={filteredExercises}
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}
@@ -239,6 +311,14 @@ export default function ExercisesAdminPage() {
           }}
           isLoading={saveMutation.isPending}
           error={saveMutation.error}
+        />
+        <ExerciseViewModal
+          open={isViewModalOpen}
+          onClose={() => {
+            setIsViewModalOpen(false);
+            setSelectedExercise(null);
+          }}
+          exercise={selectedExercise}
         />
         <DeleteConfirmationDialog
           open={isDeleteDialogOpen}

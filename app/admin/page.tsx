@@ -2,8 +2,27 @@
 
 import { BookOpen, Users, Award, ArrowRight, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { useUser } from '@clerk/nextjs';
+import { useQuery } from '@tanstack/react-query';
+import { getUserProfile } from '@/lib/supabase/services/user-service';
 
 export default function AdminDashboard() {
+  // Add user and admin role check
+  const { isLoaded, isSignedIn, user } = useUser();
+
+  // Fetch user profile from Supabase to get the role
+  const {
+    data: profileResult,
+    isLoading: isProfileLoading,
+  } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: () => user?.id ? getUserProfile(user.id) : Promise.resolve({ data: null, error: null }),
+    enabled: !!user?.id,
+  });
+
+  const profile = profileResult?.data;
+  const isAdmin = profile && ((profile as any).role === 'admin');
+
   // Admin dashboard cards
   const adminCards = [
     {
@@ -35,6 +54,39 @@ export default function AdminDashboard() {
       bgColor: '#fffbeb', // bg-amber-50
     },
   ];
+
+  // Add loading state check
+  if (!isLoaded || isProfileLoading) {
+    return <div style={{ padding: '1.5rem' }}>Loading...</div>;
+  }
+
+  // Add admin role check
+  if (!isSignedIn || !isAdmin) {
+    return (
+      <div style={{ padding: '1.5rem' }}>
+        <h1 style={{ 
+          fontSize: '2.5rem',
+          fontWeight: 'bold',
+          marginBottom: '1.5rem',
+          color: '#2563EB',
+          textAlign: 'center',
+          textShadow: '1px 1px 0px rgba(59, 130, 246, 0.2)',
+          borderBottom: '2px solid #EBF5FF',
+          paddingBottom: '1rem'
+        }}>Admin Dashboard</h1>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '0.5rem',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          padding: '1.5rem',
+          margin: '0 auto',
+          maxWidth: '32rem'
+        }}>
+          <div style={{ color: '#ef4444', fontWeight: '600' }}>Access denied. You do not have permission to view this page.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ 

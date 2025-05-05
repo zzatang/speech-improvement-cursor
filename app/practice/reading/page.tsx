@@ -40,6 +40,11 @@ import {
   updateUserProfile,
   updateStreakCount
 } from '@/lib/supabase/services/user-service';
+import { 
+  saveUserProgress, 
+  getExercisesByType 
+} from '@/lib/supabase/services/exercise-service';
+import { SpeechExercise } from '@/lib/supabase/types';
 
 // Sample reading texts for practice (would be fetched from API in production)
 const READING_TEXTS = [
@@ -77,6 +82,16 @@ const READING_TEXTS = [
   }
 ];
 
+// Interface for reading exercise from Supabase
+interface ReadingText {
+  id: string | number;
+  title: string;
+  text: string;
+  focus: string;
+  difficulty: string;
+  targetWordsPerMinute?: number;
+}
+
 // Add this interface after the READING_TEXTS array
 interface FeedbackData {
   message: string;
@@ -95,7 +110,13 @@ export default function ReadingPracticePage() {
   const [feedback, setFeedback] = useState<FeedbackData | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false); 
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false); 
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [readingTexts, setReadingTexts] = useState<ReadingText[]>(READING_TEXTS);
+  const [isLoadingExercises, setIsLoadingExercises] = useState(true);
+  
+  // Add filter state
+  const [difficultyFilter, setDifficultyFilter] = useState<string | null>(null);
+  const [filteredTexts, setFilteredTexts] = useState<ReadingText[]>(READING_TEXTS);
   
   // Refs cleaned of timerRef
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -103,8 +124,77 @@ export default function ReadingPracticePage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   
-  const currentText = READING_TEXTS[currentTextIndex];
-  // const words = currentText.text.split(" "); // No longer needed for highlighting
+  // Use filteredTexts for the current text
+  const currentText = filteredTexts[currentTextIndex];
+  
+  // Apply difficulty filter whenever it changes or when reading texts change
+  useEffect(() => {
+    if (!difficultyFilter) {
+      // If no filter is set, show all texts
+      setFilteredTexts(readingTexts);
+      // Reset to first text when filter changes
+      setCurrentTextIndex(0);
+      return;
+    }
+    
+    // Filter the texts based on difficulty
+    const filtered = readingTexts.filter(text => text.difficulty === difficultyFilter);
+    setFilteredTexts(filtered);
+    
+    // Reset to the first text when filter changes
+    setCurrentTextIndex(0);
+    
+    console.log(`Applied filter: ${difficultyFilter}, showing ${filtered.length} texts`);
+  }, [difficultyFilter, readingTexts]);
+  
+  // Fetch exercises from Supabase
+  useEffect(() => {
+    async function fetchExercises() {
+      try {
+        setIsLoadingExercises(true);
+        // Fetch reading-type exercises from Supabase
+        const exercises = await getExercisesByType('reading');
+        
+        if (exercises && exercises.data && Array.isArray(exercises.data)) {
+          // Convert Supabase exercises to the format used by this component
+          const formattedExercises: ReadingText[] = exercises.data.map(exercise => {
+            // Extract content based on the exercise structure
+            const content = exercise.content as any;
+            
+            // Map difficulty level to string
+            let difficultyText = "Medium";
+            if (exercise.difficulty_level === 1) difficultyText = "Easy";
+            else if (exercise.difficulty_level === 2) difficultyText = "Medium";
+            else if (exercise.difficulty_level === 3) difficultyText = "Hard";
+            
+            return {
+              id: exercise.id,
+              title: exercise.title || "Reading Exercise",
+              text: content?.text || "Practice reading this text",
+              focus: content?.focus || "Reading Practice",
+              difficulty: difficultyText,
+              targetWordsPerMinute: content?.targetWordsPerMinute || 90
+            };
+          });
+          
+          if (formattedExercises.length > 0) {
+            console.log("Loaded reading exercises from Supabase:", formattedExercises);
+            setReadingTexts(formattedExercises);
+          } else {
+            console.warn("No reading exercises found in Supabase, using fallback data");
+          }
+        } else {
+          console.warn("Invalid response from Supabase, using fallback data");
+        }
+      } catch (error) {
+        console.error("Error loading reading exercises from Supabase:", error);
+      } finally {
+        setIsLoadingExercises(false);
+      }
+    }
+    
+    fetchExercises();
+  }, []);
   
   // Functions cleaned of visual pacing logic
   const resetExercise = () => {
@@ -124,12 +214,12 @@ export default function ReadingPracticePage() {
   };
   
   const goToNextText = () => {
-    setCurrentTextIndex(prev => (prev + 1) % READING_TEXTS.length);
+    setCurrentTextIndex(prev => (prev + 1) % filteredTexts.length);
     resetExercise();
   };
   
   const goToPreviousText = () => {
-    setCurrentTextIndex(prev => (prev - 1 + READING_TEXTS.length) % READING_TEXTS.length);
+    setCurrentTextIndex(prev => (prev - 1 + filteredTexts.length) % filteredTexts.length);
     resetExercise();
   };
   
@@ -353,7 +443,9 @@ export default function ReadingPracticePage() {
         const { saveUserProgress } = await import('@/lib/supabase/services/exercise-service');
         
         // Create a consistent exercise ID format that includes text title and focus
-        const exerciseId = `reading_${currentText.title.toLowerCase().replace(/\s+/g, '_')}_${currentTextIndex}`;
+        const exerciseId = typeof currentText.id === 'string' ? 
+          currentText.id : // Use the actual Supabase ID if it's a string
+          `reading_${currentText.title.toLowerCase().replace(/\s+/g, '_')}_${currentTextIndex}`;
         
         console.log(`Saving progress for exercise ID: ${exerciseId}`);
         
@@ -406,16 +498,24 @@ export default function ReadingPracticePage() {
       setIsPlayingAudio(true);
       setIsLoadingAudio(true);
       
-      const formData = new FormData();
-      formData.append('text', currentText.text);
-      formData.append('voice', 'en-AU-Standard-A');
-      
+      // Fix: Send JSON instead of FormData
       const response = await fetch('/api/speech/tts', {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: currentText.text,
+          voiceName: 'en-AU-Neural2-B', // Use the Neural voice for better quality
+          languageCode: 'en-AU'
+        })
       });
       
-      if (!response.ok) throw new Error(`TTS API failed with status: ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error('TTS API error details:', errorData);
+        throw new Error(`TTS API failed with status: ${response.status}`);
+      }
       
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
@@ -428,7 +528,7 @@ export default function ReadingPracticePage() {
       audioElement.onended = () => {
         setIsPlayingAudio(false);
         URL.revokeObjectURL(audioUrl);
-        if (autoAdvance && currentTextIndex < READING_TEXTS.length - 1) {
+        if (autoAdvance && currentTextIndex < filteredTexts.length - 1) {
           setTimeout(() => {
             setCurrentTextIndex(prev => prev + 1);
           }, 1500);
@@ -614,9 +714,144 @@ export default function ReadingPracticePage() {
           }}>
             Read along with the highlighted words at your own pace. Practice your pronunciation and fluency!
           </p>
-                    </div>
+        </div>
+        
+        {/* Difficulty Filter */}
+        {!isLoadingExercises && readingTexts.length > 0 && (
+          <div style={{
+            width: '100%',
+            maxWidth: '800px',
+            marginBottom: '1.5rem',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '1rem'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '1rem',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+              border: '1px solid #e5e7eb'
+            }}>
+              <label style={{
+                marginRight: '0.75rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                color: '#4B5563'
+              }}>
+                Difficulty Level:
+              </label>
+              <div style={{
+                display: 'flex',
+                gap: '0.5rem'
+              }}>
+                <button
+                  onClick={() => setDifficultyFilter(null)}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    border: 'none',
+                    backgroundColor: !difficultyFilter ? '#3B82F6' : '#f3f4f6',
+                    color: !difficultyFilter ? 'white' : '#6b7280',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  All
+                </button>
+                {['Easy', 'Medium', 'Hard'].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setDifficultyFilter(level)}
+                    style={{
+                      padding: '0.375rem 0.75rem',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      border: 'none',
+                      backgroundColor: difficultyFilter === level ? '#3B82F6' : '#f3f4f6',
+                      color: difficultyFilter === level ? 'white' : '#6b7280',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Filter indicator */}
+            {difficultyFilter && (
+              <div style={{
+                padding: '0.5rem 0.75rem',
+                borderRadius: '1rem',
+                backgroundColor: '#EFF6FF',
+                color: '#3B82F6',
+                fontWeight: '500',
+                fontSize: '0.875rem',
+                border: '1px solid #BFDBFE'
+              }}>
+                Showing {filteredTexts.length} of {readingTexts.length} texts
+              </div>
+            )}
+          </div>
+        )}
                     
-        {/* Reading Card */}
+        {/* Loading state for exercises */}
+        {isLoadingExercises ? (
+          <div style={{
+            width: '100%',
+            maxWidth: '800px',
+            padding: '2rem',
+            textAlign: 'center',
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{
+              width: '3rem',
+              height: '3rem',
+              borderRadius: '50%',
+              border: '3px solid #E5E7EB',
+              borderTopColor: '#3B82F6',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 1rem auto'
+            }}></div>
+            <p style={{ color: '#4B5563' }}>Loading reading exercises...</p>
+          </div>
+        ) : readingTexts.length === 0 ? (
+          <div style={{
+            width: '100%',
+            maxWidth: '800px',
+            padding: '2rem',
+            textAlign: 'center',
+            backgroundColor: 'white',
+            borderRadius: '1rem',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <p style={{ color: '#EF4444', marginBottom: '1rem' }}>No reading exercises found.</p>
+            <Link href="/dashboard" style={{
+              display: 'inline-flex',
+              alignItems: 'center', 
+              gap: '0.5rem',
+              backgroundColor: '#3B82F6',
+              color: 'white',
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              textDecoration: 'none'
+            }}>
+              <ArrowLeft style={{ width: '1rem', height: '1rem' }} />
+              Return to Dashboard
+            </Link>
+          </div>
+        ) : (
+        /* Reading Card */
         <div style={{
           width: '100%',
           maxWidth: '800px',
@@ -669,7 +904,7 @@ export default function ReadingPracticePage() {
                 fontSize: '0.875rem',
                 boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
               }}>
-                Text {currentTextIndex + 1} of {READING_TEXTS.length}
+                Text {currentTextIndex + 1} of {filteredTexts.length}
               </div>
             </div>
                     </div>
@@ -1045,7 +1280,7 @@ export default function ReadingPracticePage() {
                         <RefreshCw style={{ width: '1rem', height: '1rem' }} />
                         Try Again
                       </button>
-              </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1083,95 +1318,98 @@ export default function ReadingPracticePage() {
             
             <button
                   onClick={goToNextText}
-              disabled={isPlayingAudio || isRecording || isLoadingAudio}
+              disabled={isPlayingAudio || isRecording || isLoadingAudio || currentTextIndex === filteredTexts.length - 1}
               style={{
                 padding: '0.75rem 1.25rem',
                 borderRadius: '0.75rem',
                 border: 'none',
-                backgroundColor: currentTextIndex === READING_TEXTS.length - 1 ? '#F3F4F6' : '#3B82F6',
-                color: currentTextIndex === READING_TEXTS.length - 1 ? '#9CA3AF' : 'white',
+                backgroundColor: currentTextIndex === filteredTexts.length - 1 ? '#F3F4F6' : '#3B82F6',
+                color: currentTextIndex === filteredTexts.length - 1 ? '#9CA3AF' : 'white',
                 fontWeight: '600',
-                cursor: currentTextIndex === READING_TEXTS.length - 1 ? 'default' : 'pointer',
+                cursor: currentTextIndex === filteredTexts.length - 1 ? 'default' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                boxShadow: currentTextIndex === READING_TEXTS.length - 1 ? 'none' : '0 4px 6px rgba(59, 130, 246, 0.3)'
+                boxShadow: currentTextIndex === filteredTexts.length - 1 ? 'none' : '0 4px 6px rgba(59, 130, 246, 0.3)'
               }}
             >
               Next
               <ChevronRight style={{ width: '1rem', height: '1rem' }} />
             </button>
-              </div>
+          </div>
         </div>
+        )}
           
-          {/* Tips Section */}
-        <div style={{
-          width: '100%',
-          maxWidth: '800px',
-          marginTop: '2rem',
-          borderRadius: '1.5rem',
-          border: '2px dashed #06D6A0',
-          backgroundColor: 'white',
-          padding: '1.5rem',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
-          transform: 'rotate(-0.5deg)'
-        }}>
-          <h3 style={{
-            fontSize: '1.25rem',
-            fontWeight: 'bold',
-            marginBottom: '1rem',
-            color: '#059669',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            textShadow: '1px 1px 0px rgba(5, 150, 105, 0.1)'
+          {/* Tips Section - only show when exercises are loaded and available */}
+          {!isLoadingExercises && filteredTexts.length > 0 && (
+          <div style={{
+            width: '100%',
+            maxWidth: '800px',
+            marginTop: '2rem',
+            borderRadius: '1.5rem',
+            border: '2px dashed #06D6A0',
+            backgroundColor: 'white',
+            padding: '1.5rem',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05)',
+            transform: 'rotate(-0.5deg)'
           }}>
-            <span style={{ fontSize: '1.5rem' }}>💡</span> 
-            Tips for "{currentText.focus}"
-          </h3>
-          <ul style={{
-            listStyleType: 'none',
-            padding: '0',
-            margin: '0',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem'
-          }}>
-            <li style={{
+            <h3 style={{
+              fontSize: '1.25rem',
+              fontWeight: 'bold',
+              marginBottom: '1rem',
+              color: '#059669',
               display: 'flex',
-              alignItems: 'flex-start',
+              alignItems: 'center',
               gap: '0.5rem',
-              fontSize: '1rem',
-              color: '#4B5563',
-              lineHeight: '1.5'
+              textShadow: '1px 1px 0px rgba(5, 150, 105, 0.1)'
             }}>
-              <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
-              Try to maintain a steady rhythm when reading
-            </li>
-            <li style={{
+              <span style={{ fontSize: '1.5rem' }}>💡</span> 
+              Tips for "{currentText.focus}"
+            </h3>
+            <ul style={{
+              listStyleType: 'none',
+              padding: '0',
+              margin: '0',
               display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.5rem',
-              fontSize: '1rem',
-              color: '#4B5563',
-              lineHeight: '1.5'
+              flexDirection: 'column',
+              gap: '0.75rem'
             }}>
-              <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
-              Pay special attention to the focus sounds in each text
-            </li>
-            <li style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.5rem',
-              fontSize: '1rem',
-              color: '#4B5563',
-              lineHeight: '1.5'
-            }}>
-              <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
-              Start slower and gradually increase your reading speed
-            </li>
-              </ul>
-        </div>
+              <li style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                fontSize: '1rem',
+                color: '#4B5563',
+                lineHeight: '1.5'
+              }}>
+                <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span> 
+                Try to maintain a steady rhythm when reading
+              </li>
+              <li style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                fontSize: '1rem',
+                color: '#4B5563',
+                lineHeight: '1.5'
+              }}>
+                <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+                Pay special attention to the focus sounds in each text
+              </li>
+              <li style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.5rem',
+                fontSize: '1rem',
+                color: '#4B5563',
+                lineHeight: '1.5'
+              }}>
+                <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
+                Start slower and gradually increase your reading speed
+              </li>
+            </ul>
+          </div>
+        )}
       </main>
       
       {/* Footer */}
