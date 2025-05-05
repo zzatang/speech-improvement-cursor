@@ -5,12 +5,13 @@ import TanstackClientProvider from '@/components/providers/tanstack-client-provi
 import ClerkClientProvider from '@/components/providers/clerk-client-provider'
 import { Inter } from 'next/font/google'
 import { SupabaseProvider } from '@/utils/supabase/context'
+import { logEnvironmentStatus } from "@/lib/vercel/environment-check"
 
 // Load Inter as the main font
 const inter = Inter({
   subsets: ['latin'],
-  display: 'swap',
   variable: '--font-sans',
+  display: 'swap',
 })
 
 // Load local Geist fonts
@@ -27,6 +28,12 @@ const geistMono = localFont({
   weight: '100 900',
   display: 'swap',
 })
+
+// Log environment status in development or on server start
+if (typeof window === 'undefined') {
+  // Only run on server, not client
+  logEnvironmentStatus();
+}
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
