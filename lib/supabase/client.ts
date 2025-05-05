@@ -17,9 +17,9 @@ export const handleSupabaseError = (error: any) => {
   return {
     data: null,
     error: {
-      message: error?.message || 'An unexpected error occurred',
-      status: error?.status || 500,
-    },
+      message: error instanceof Error ? error.message : 'Unknown error',
+      details: error
+    }
   };
 };
 

@@ -12,16 +12,13 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
 
     // Initialize a client even without a session
     const supabase = useMemo(() => {
-        if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-            console.error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable");
-        }
-        if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-            console.error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable");
-        }
+        // Check for environment variables
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://missing-url.supabase.co';
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-key';
         
         return createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            supabaseUrl,
+            supabaseKey,
             {
                 global: {
                     fetch: async (url, options = {}) => {
@@ -49,16 +46,12 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (isClerkLoaded) {
             if (session) {
-                console.log("Clerk session is available");
                 session.getToken({ template: 'supabase' }).then(token => {
-                    console.log("Supabase token available:", !!token);
                     setIsSupabaseReady(true);
                 }).catch(err => {
-                    console.error("Error getting Supabase token:", err);
                     setIsSupabaseReady(true); // Still ready, just without auth
                 });
             } else {
-                console.log("No Clerk session available");
                 setIsSupabaseReady(true); // Ready with anonymous access
             }
         }

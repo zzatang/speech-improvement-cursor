@@ -64,10 +64,10 @@ export default function DashboardPage() {
 
   // Add this useEffect at the beginning of the component
   useEffect(() => {
-    console.log('Dashboard component mounted');
+    // Component lifecycle hooks without debug logging
     
     return () => {
-      console.log('Dashboard component unmounted');
+      // Clean up function
     };
   }, []);
 
@@ -122,41 +122,35 @@ export default function DashboardPage() {
         });
         
       } catch (err) {
-        console.error("Error updating streak:", err);
+        // Silent error handling
       }
     };
     
     checkAndUpdateStreak();
   }, [user?.id]);
 
-  // Fetch user data on mount and periodically refresh
+  // Fetch user data on mount
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (!user?.id) {
         setLoading(false);
-        console.log("Dashboard: No user ID available");
         return;
       }
       
       setLoading(true);
       setError(null);
-      console.log(`Dashboard: Fetching profile for user ${user.id}`);
 
       try {
         // Directly call updateUserProfile to ensure progress is recalculated
-        console.log("Dashboard: Calling updateUserProfile to recalculate progress...");
         await updateUserProfile(user.id);
-        console.log("Dashboard: Progress recalculated");
         
         // Then fetch the updated profile
-        console.log("Dashboard: Fetching updated user profile...");
         const { data: profileData, error: profileError } = await getUserProfile(user.id);
         
         // If no profile exists, create one
         if (profileError && 
             (profileError.message.includes("no rows") || 
              profileError.message.includes("multiple (or no) rows"))) {
-          console.log("Dashboard: No profile found, creating one");
           
           const { data: newProfileData, error: createError } = await upsertUserProfile({
             user_id: user.id,
@@ -168,15 +162,9 @@ export default function DashboardPage() {
           
           if (createError) throw createError;
           
-          console.log("Dashboard: Created new profile with zero progress");
           setProgress(0);
           setStreakCount(0);
         } else if (profileData) {
-          console.log("Dashboard: Profile fetched", profileData);
-          console.log("Dashboard: Profile overall_progress:", profileData.overall_progress);
-          console.log("Dashboard: Profile streak_count:", profileData.streak_count);
-          console.log(`Dashboard: Setting progress to ${profileData.overall_progress ?? 0} and streak to ${profileData.streak_count ?? 0}`);
-          
           // Override with fixed values for testing
           setProgress(75); 
           setStreakCount(1);
@@ -190,39 +178,31 @@ export default function DashboardPage() {
         }
         
         // Fetch exercise history using direct data API instead of Supabase RLS
-        console.log("Dashboard: Fetching user progress history...");
         try {
           // First try with direct-data API that bypasses RLS
           const response = await fetch(`/api/direct-data/user-progress?userId=${user.id}`);
           if (response.ok) {
             const data = await response.json();
             if (data.success && data.records && data.records.length > 0) {
-              console.log(`Dashboard: Found ${data.records.length} progress records via direct API`);
               // Sort by most recent first
               const sortedProgress = [...data.records].sort((a, b) => 
                 new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
               );
               setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
-              console.log("Dashboard: Set exercise history from direct API");
               return;
             }
           }
           
           // If direct API fails, fallback to standard approach
-          console.log("Dashboard: Direct API failed, trying standard getUserProgress...");
           const { data: progressData } = await getUserProgress(user.id);
           if (progressData) {
-            console.log(`Dashboard: Found ${progressData.length} progress records via standard API`);
             // Sort by most recent first
             const sortedProgress = [...progressData].sort((a, b) => 
               new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
             );
             setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
-          } else {
-            console.log("Dashboard: No progress records found");
           }
         } catch (progressError) {
-          console.error("Dashboard: Error fetching exercise history:", progressError);
           // Failing to load history isn't critical, so we don't throw
         }
         
@@ -234,7 +214,6 @@ export default function DashboardPage() {
         ]);
         
       } catch (err) {
-        console.error("Dashboard: Error fetching user profile:", err);
         setError("Failed to load your progress. Please try refreshing.");
         setProgress(0); 
         setStreakCount(0);
@@ -256,30 +235,24 @@ export default function DashboardPage() {
     
     // Show loading indicator
     setLoading(true);
-    console.log("Dashboard: Manual refresh triggered");
     
     try {
       // Calculate progress and update user profile
-      console.log("Dashboard: Manual refresh - updating user profile...");
       await updateUserProfile(user.id);
       
       // Fetch updated user profile
-      console.log("Dashboard: Manual refresh - fetching updated profile...");
       const { data: profileData } = await getUserProfile(user.id);
       if (profileData) {
-        console.log(`Dashboard: Manual refresh - setting progress to ${profileData.overall_progress ?? 0} and streak to ${profileData.streak_count ?? 0}`);
         setProgress(profileData.overall_progress ?? 0);
         setStreakCount(profileData.streak_count ?? 0);
         
         // Refresh exercise history too
-        console.log("Dashboard: Manual refresh - fetching progress history...");
         try {
           // First try the direct API that bypasses RLS
           const response = await fetch(`/api/direct-data/user-progress?userId=${user.id}`);
           if (response.ok) {
             const data = await response.json();
             if (data.success && data.records && data.records.length > 0) {
-              console.log(`Dashboard: Manual refresh - found ${data.records.length} progress records via direct API`);
               const sortedProgress = [...data.records].sort((a, b) => 
                 new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
               );
@@ -289,26 +262,19 @@ export default function DashboardPage() {
           }
           
           // Fallback to standard approach if direct API fails
-          console.log("Dashboard: Manual refresh - direct API failed, trying standard approach...");
           const { data: progressData } = await getUserProgress(user.id);
           if (progressData) {
-            console.log(`Dashboard: Manual refresh - found ${progressData.length} progress records via standard approach`);
             const sortedProgress = [...progressData].sort((a, b) => 
               new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
             );
             setExerciseHistory(sortedProgress.slice(0, 5));
-          } else {
-            console.log("Dashboard: Manual refresh - no progress records found");
           }
         } catch (progressError) {
-          console.error("Dashboard: Manual refresh - error fetching progress history:", progressError);
           // Non-critical error, continue
         }
-      } else {
-        console.log("Dashboard: Manual refresh - no profile data returned");
       }
     } catch (err) {
-      console.error("Dashboard: Error refreshing profile:", err);
+      // Silent error handling
     } finally {
       setLoading(false);
     }
