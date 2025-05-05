@@ -106,6 +106,7 @@ export default function ProfilePage() {
     
     async function fetchUserData() {
       try {
+        setLoading(true);
         const userIdToUse = user?.id || demoUserId;
         
         // Fetch user profile directly from Supabase
@@ -123,6 +124,7 @@ export default function ProfilePage() {
           setUsername(profileData.data.display_name || 'Speech User');
           setStreakCount(profileData.data.streak_count || 0);
           setTotalExercises(profileData.data.overall_progress || 0);
+          setProfile(profileData.data);
           
           // Update profile with latest activity timestamp to track user engagement
           try {
@@ -134,13 +136,15 @@ export default function ProfilePage() {
           // No profile data, creating default
           
           // Create a default profile for this user
-          await upsertUserProfile({
+          const newProfile = {
             user_id: userIdToUse,
             display_name: user?.firstName || 'Speech User',
             streak_count: 0,
             last_login: new Date().toISOString(),
             overall_progress: 0
-          });
+          };
+          await upsertUserProfile(newProfile);
+          setProfile(newProfile);
         }
         
         // This will try multiple endpoints to get the most complete data
@@ -175,22 +179,25 @@ export default function ProfilePage() {
             // TODO: Implement achievement service
             // For now, use sample achievements
             setAchievements([
-              { id: '1', title: 'First Login', description: 'Welcome to Speech Improvement!', dateEarned: new Date().toISOString() },
-              { id: '2', title: 'Practice Starter', description: 'Complete your first practice session', dateEarned: new Date().toISOString() },
-              { id: '3', title: 'On a Roll', description: 'Practice 3 days in a row', dateEarned: new Date().toISOString() },
+              { id: '1', title: 'First Login', description: 'Welcome to Speech Improvement!', dateEarned: new Date().toISOString(), icon: '🏆' },
+              { id: '2', title: 'Practice Starter', description: 'Complete your first practice session', dateEarned: new Date().toISOString(), icon: '🎯' },
+              { id: '3', title: 'On a Roll', description: 'Practice 3 days in a row', dateEarned: new Date().toISOString(), icon: '🔥' },
             ]);
           } catch (achievementsError) {
             // Error fetching achievements
             
             // Use default achievements
             setAchievements([
-              { id: '1', title: 'First Login', description: 'Welcome to Speech Improvement!', dateEarned: new Date().toISOString() },
+              { id: '1', title: 'First Login', description: 'Welcome to Speech Improvement!', dateEarned: new Date().toISOString(), icon: '🏆' },
             ]);
           }
         }
       } catch (err) {
         // Error fetching user data
-        setIsDataLoaded(true); // Set to true so we don't show loading state forever
+        setError("Failed to load profile data. Please try again later.");
+      } finally {
+        setLoading(false);
+        setIsDataLoaded(true);
       }
     }
     
