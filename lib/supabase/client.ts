@@ -13,7 +13,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
  * Helper function to handle common Supabase errors
  */
 export const handleSupabaseError = (error: any) => {
-  console.error('Supabase error:', error);
   return {
     data: null,
     error: {

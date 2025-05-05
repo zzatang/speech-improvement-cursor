@@ -58,8 +58,6 @@ export default function DashboardPage() {
   const [exerciseHistory, setExerciseHistory] = useState<any[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
 
-  console.log('Initial state - progress:', progress, 'streakCount:', streakCount);
-
   const { user } = useUser();
 
   // Add this useEffect at the beginning of the component
@@ -292,21 +290,11 @@ export default function DashboardPage() {
         updated_at: new Date().toISOString()
       });
       
-      // Show success message (could enhance with toast notification)
-      console.log("Avatar customization saved!");
+      // Silent success
     } catch (error) {
-      console.error("Error saving avatar:", error);
+      // Silent error handling
     }
   };
-
-  // Add this useEffect after the other useEffect hooks
-  useEffect(() => {
-    console.log('Progress state changed:', progress);
-  }, [progress]);
-
-  useEffect(() => {
-    console.log('Streak state changed:', streakCount);
-  }, [streakCount]);
 
   if (loading) {
     return <div style={{ /* Loading state styles */ }}>Loading dashboard...</div>;
@@ -315,8 +303,6 @@ export default function DashboardPage() {
   if (error) {
     return <div style={{ /* Error state styles */ }}>Error: {error}</div>;
   }
-
-  console.log('RENDER VALUES - progress:', progress, 'streakCount:', streakCount);
 
   return (
     <div style={{
