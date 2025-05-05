@@ -273,13 +273,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Add this function after the refreshUserProfile function
-  const forceUpdate = () => {
-    console.log('Force updating values directly');
-    setProgress(75);
-    setStreakCount(1);
-  };
-
   // Save avatar customization
   const saveAvatarCustomization = async () => {
     if (!user?.id) return;
@@ -495,19 +488,6 @@ export default function DashboardPage() {
                     }}
                   >
                     <RefreshCw size={16} />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={forceUpdate}
-                    style={{
-                      width: '2rem',
-                      height: '2rem', 
-                      borderRadius: '0.5rem',
-                      backgroundColor: '#FFD166'
-                    }}
-                  >
-                    F
                   </Button>
                   <span style={{
                     fontSize: '1.1rem',
