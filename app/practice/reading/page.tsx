@@ -143,8 +143,6 @@ export default function ReadingPracticePage() {
     
     // Reset to the first text when filter changes
     setCurrentTextIndex(0);
-    
-    console.log(`Applied filter: ${difficultyFilter}, showing ${filtered.length} texts`);
   }, [difficultyFilter, readingTexts]);
   
   // Fetch exercises from Supabase
@@ -178,16 +176,15 @@ export default function ReadingPracticePage() {
           });
           
           if (formattedExercises.length > 0) {
-            console.log("Loaded reading exercises from Supabase:", formattedExercises);
             setReadingTexts(formattedExercises);
           } else {
-            console.warn("No reading exercises found in Supabase, using fallback data");
+            // No reading exercises found in Supabase, using fallback data
           }
         } else {
-          console.warn("Invalid response from Supabase, using fallback data");
+          // Invalid response from Supabase, using fallback data
         }
       } catch (error) {
-        console.error("Error loading reading exercises from Supabase:", error);
+        // Error loading reading exercises from Supabase
       } finally {
         setIsLoadingExercises(false);
       }
@@ -239,7 +236,6 @@ export default function ReadingPracticePage() {
       audioChunksRef.current = [];
       
       mediaRecorderRef.current.ondataavailable = (event) => {
-        console.log("[Reading Page] ondataavailable fired. Chunk size:", event.data.size);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
@@ -249,33 +245,32 @@ export default function ReadingPracticePage() {
         // Create Blob without forcing type - let browser default apply
         const audioBlob = new Blob(audioChunksRef.current);
         
-        console.log("[Reading Page] Recorded Audio Blob Type:", audioBlob.type);
-        
         analyzeRecording(audioBlob);
       };
       
-      console.log("[Reading Page] Attempting to start recorder...");
-      mediaRecorderRef.current.start();
-      console.log("[Reading Page] Recorder started. State:", mediaRecorderRef.current.state);
-      
+      // Start recording
       setIsRecording(true);
+      mediaRecorderRef.current.start();
     } catch (error) {
-      console.error("[Reading Page] Error in startRecording:", error);
+      // Error in startRecording
     }
   };
   
   const stopRecording = () => {
-    console.log("[Reading Page] stopRecording called. Recorder state:", mediaRecorderRef.current?.state);
+    setIsRecording(false);
     
+    // Check if mediaRecorder exists and is recording before calling stop
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      console.log("[Reading Page] Calling mediaRecorder.stop()...");
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (mediaRecorderRef.current.stream) { 
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      try {
+        mediaRecorderRef.current.stop();
+        
+        // Stop all tracks in the stream
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        // Error stopping recorder
       }
     } else {
-        console.log("[Reading Page] stopRecording: Condition not met to call stop(). Ref exists:", !!mediaRecorderRef.current);
+      // Condition not met to call stop()
     }
   };
   
@@ -303,7 +298,6 @@ export default function ReadingPracticePage() {
       // Get the current user ID from Clerk
       const { userId } = await fetch('/api/auth').then(res => res.json());
       if (!userId) {
-        console.error("No user ID found");
         throw new Error("Authentication required");
       }
       
@@ -447,8 +441,6 @@ export default function ReadingPracticePage() {
           currentText.id : // Use the actual Supabase ID if it's a string
           `reading_${currentText.title.toLowerCase().replace(/\s+/g, '_')}_${currentTextIndex}`;
         
-        console.log(`Saving progress for exercise ID: ${exerciseId}`);
-        
         // Prepare feedback message for storage
         const storageFeedbackMsg = `Score: ${exerciseScore}%. Transcript: "${transcript}". ${feedbackMessage}`;
         
@@ -463,27 +455,22 @@ export default function ReadingPracticePage() {
         });
         
         if (progressResult.error) {
-          console.error("Error saving reading progress:", progressResult.error);
-        } else {
-          console.log("Reading progress saved successfully:", progressResult.data);
-          
-          // Update the user's overall progress using the service function
-          // This will correctly calculate overall progress based on all exercises
-          const { updateUserProfile, updateStreakCount } = await import('@/lib/supabase/services/user-service');
-          
-          // Update overall progress (this recalculates based on all progress records)
-          await updateUserProfile(userId);
-          
-          // Update streak count to maintain activity streak
-          await updateStreakCount(userId, 1);
-          
-          console.log("Updated user profile and streak count");
+          throw new Error("Error saving reading progress");
         }
+        
+        // Update the user's overall progress using the service function
+        // This will correctly calculate overall progress based on all exercises
+        const { updateUserProfile, updateStreakCount } = await import('@/lib/supabase/services/user-service');
+        
+        // Update overall progress (this recalculates based on all progress records)
+        await updateUserProfile(userId);
+        
+        // Update streak count to maintain activity streak
+        await updateStreakCount(userId, 1);
       } catch (saveError) {
-        console.error("Failed to save reading progress:", saveError);
+        throw new Error("Failed to save reading progress");
       }
     } catch (error) {
-      console.error("Error analyzing recording:", error);
       setFeedback({
         message: "Sorry, couldn't analyze your reading.",
         score: 0,
@@ -495,63 +482,57 @@ export default function ReadingPracticePage() {
   
   const playAudio = async () => {
     try {
-      setIsPlayingAudio(true);
       setIsLoadingAudio(true);
+      setIsPlayingAudio(false);
       
-      // Fix: Send JSON instead of FormData
+      // Create a new audio element if it doesn't exist
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+      }
+      
+      // Clear any existing audio
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      
+      // Set up volume control
+      audioRef.current.volume = volume ? volumeLevel : 0;
+      
+      // Fetch audio from TTS API
       const response = await fetch('/api/speech/tts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: currentText.text,
-          voiceName: 'en-AU-Neural2-B', // Use the Neural voice for better quality
-          languageCode: 'en-AU'
+          voice: 'en-AU-Standard-B', // Australian male voice
+          speakingRate: 1.0,
+          pitch: 0.0
         })
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.error('TTS API error details:', errorData);
-        throw new Error(`TTS API failed with status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        // TTS API error details
+        throw new Error('Failed to get audio from TTS API');
       }
       
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audioElement = new Audio(audioUrl);
+      // Create object URL from audio blob
+      const blob = await response.blob();
+      const audioUrl = URL.createObjectURL(blob);
       
-      audioElement.onloadedmetadata = () => {
-        setIsLoadingAudio(false);
-      };
-      
-      audioElement.onended = () => {
+      // Set up audio playback
+      audioRef.current.src = audioUrl;
+      audioRef.current.onended = () => {
         setIsPlayingAudio(false);
-        URL.revokeObjectURL(audioUrl);
-        if (autoAdvance && currentTextIndex < filteredTexts.length - 1) {
-          setTimeout(() => {
-            setCurrentTextIndex(prev => prev + 1);
-          }, 1500);
-        }
       };
       
-      if (volume) {
-        audioElement.volume = volumeLevel;
-      } else {
-        audioElement.volume = 0;
-      }
-      
-      audioElement.play();
+      // Play the audio
+      await audioRef.current.play();
+      setIsPlayingAudio(true);
+      setIsLoadingAudio(false);
     } catch (error) {
-      console.error("Error playing audio:", error);
+      // Error playing audio
       setIsPlayingAudio(false);
       setIsLoadingAudio(false);
-      setFeedback({
-        message: "Sorry, couldn't play audio.",
-        score: 0,
-        transcript: "",
-        suggestions: ["Check your internet connection", "Try refreshing the page"]
-      });
     }
   };
   

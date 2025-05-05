@@ -159,16 +159,15 @@ export default function RepeatAfterMePage() {
           });
           
           if (formattedExercises.length > 0) {
-            console.log("Loaded exercises from Supabase:", formattedExercises);
             setPracticePhrases(formattedExercises);
           } else {
-            console.warn("No exercises found in Supabase, using fallback data");
+            // No exercises found in Supabase, using fallback data
           }
         } else {
-          console.warn("Invalid response from Supabase, using fallback data");
+          // Invalid response from Supabase, using fallback data
         }
       } catch (error) {
-        console.error("Error loading exercises from Supabase:", error);
+        // Error loading exercises from Supabase
       } finally {
         setIsLoadingExercises(false);
         setLoading(false);
@@ -194,8 +193,6 @@ export default function RepeatAfterMePage() {
     
     // Reset to the first phrase when filter changes
     setCurrentPhraseIndex(0);
-    
-    console.log(`Applied filter: ${difficultyFilter}, showing ${filtered.length} phrases`);
   }, [difficultyFilter, practicePhrases]);
   
   // Use filteredPhrases instead of practicePhrases for displaying and navigation
@@ -226,8 +223,6 @@ export default function RepeatAfterMePage() {
       else if (currentPhrase.difficulty === 'Medium') level = 2;
       else if (currentPhrase.difficulty === 'Hard') level = 3;
       
-      console.log(`Fetching practice phrase for sound type: "${sound}", difficulty: ${level}, focus: "${currentPhrase.focus}"`);
-      
       // Fetch the practice audio
       const response = await fetch('/api/speech/practice', {
         method: 'POST',
@@ -248,6 +243,9 @@ export default function RepeatAfterMePage() {
       if (contentType && contentType.includes('application/json')) {
         // This is a JSON response with text information
         const data = await response.json();
+        
+        // Update the display text
+        // console.log(`Updating displayed text to: "${data.text}"`);
         
         if (data.text) {
           // Update the current phrase text to match what's being spoken
@@ -611,8 +609,10 @@ export default function RepeatAfterMePage() {
   
   // Function to move to the next phrase
   const goToNextPhrase = () => {
-    setCurrentPhraseIndex(prev => (prev + 1) % filteredPhrases.length);
-    resetExerciseState();
+    if (currentPhraseIndex < filteredPhrases.length - 1) {
+      setCurrentPhraseIndex(prevIndex => prevIndex + 1);
+      resetExerciseState();
+    }
   };
   
   // Function to move to the previous phrase
@@ -717,6 +717,32 @@ export default function RepeatAfterMePage() {
     fetchUserProfile();
   }, [user?.id]);
   
+  // Handle playing audio automatically when it's loaded
+  useEffect(() => {
+    const audioElement = audioRef.current;
+    if (audioElement && audioElement.src && !isRecording && !recordingComplete) {
+      const playPromise = audioElement.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch(e => {
+            // Audio playback error
+          });
+      }
+    }
+  }, [audioRef.current?.src]);
+  
+  // Toggle mute state
+  const toggleMute = () => {
+    const newMuteState = !isMuted;
+    setIsMuted(newMuteState);
+    if (audioRef.current) {
+      audioRef.current.volume = newMuteState ? 0 : volumeLevel;
+    }
+  };
+  
   return (
     <div style={{
       display: 'flex',
@@ -804,23 +830,7 @@ export default function RepeatAfterMePage() {
               <Button 
                 variant="ghost" 
                 size="icon"
-                onClick={() => {
-                  const newMuteState = !isMuted;
-                  setIsMuted(newMuteState);
-                  
-                  // Apply mute/unmute to the audio element immediately
-                  if (audioRef.current) {
-                    if (!newMuteState) {
-                      // Unmute - restore previous volume level
-                      audioRef.current.volume = volumeLevel;
-                    } else {
-                      // Mute - set volume to 0
-                      audioRef.current.volume = 0;
-                    }
-                  }
-                  
-                  console.log(`Volume set to: ${newMuteState ? 'off' : 'on'}, level: ${newMuteState ? 0 : volumeLevel}`);
-                }}
+                onClick={toggleMute}
                 style={{
                   backgroundColor: 'transparent',
                   border: 'none',

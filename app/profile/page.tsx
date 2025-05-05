@@ -7,7 +7,8 @@ import { useUser, UserButton } from "@clerk/nextjs";
 import { 
   getUserProfile, 
   getUserAchievements,
-  updateUserProfile
+  updateUserProfile,
+  upsertUserProfile
 } from "@/lib/supabase/services/user-service";
 import { supabase } from "@/lib/supabase/client";
 import { Progress } from "@/components/ui/progress";
@@ -25,277 +26,216 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("history");
+  const [username, setUsername] = useState("Speech User");
+  const [streakCount, setStreakCount] = useState(0);
+  const [totalExercises, setTotalExercises] = useState(0);
+  const [dataFetchMethod, setDataFetchMethod] = useState("default");
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null);
+  const [isDemoMode] = useState(false);
+  const [demoUserId] = useState("demo-user");
   
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
 
   // Add debug state
   const [debugInfo, setDebugInfo] = useState<any>({});
   const [showDebug, setShowDebug] = useState(false);
 
   // Add a function to fetch user progress from our API endpoint
-  const fetchUserProgressFromApi = async (userId: string) => {
+  const fetchUserProgressFromAPI = async (userId: string) => {
     try {
-      console.log("API: Fetching user progress from API for", userId);
-      
-      // First try using the MCP direct API that should return all 15 records
+      // Try fetching via MCP endpoints first, which has better error handling
+      let mcpData = { records: [], method: '' };
       try {
-        console.log("API: Trying MCP direct-data API endpoint first...");
-        const mcpResponse = await fetch(`/api/direct-data/user-progress-mcp?userId=${encodeURIComponent(userId)}`);
+        
+        // Try MCP direct-data API endpoint first
+        const mcpResponse = await fetch(`/api/direct-data/user-progress-mcp?userId=${userId}`);
         
         if (mcpResponse.ok) {
-          const mcpData = await mcpResponse.json();
+          mcpData = await mcpResponse.json();
           
-          if (mcpData.success && mcpData.records && mcpData.records.length > 0) {
-            console.log(`API: MCP Direct API returned ${mcpData.records.length} records via ${mcpData.method}`);
-            return mcpData.records;
-          } else {
-            console.log("API: MCP Direct API returned no records or was unsuccessful");
+          if (mcpData.records && mcpData.records.length > 0) {
+            return mcpData;
           }
         } else {
-          console.error(`API: MCP Direct API failed with status ${mcpResponse.status}`);
+          // MCP Direct API failed with status
         }
       } catch (mcpError) {
-        console.error("API: Error using MCP direct data API:", mcpError);
+        // Error using MCP direct data API
       }
       
-      // Next try using the regular direct data API
+      // Fall back to direct-data API
+      let directData = { records: [], method: '' };
       try {
-        console.log("API: Trying direct-data API endpoint...");
-        const directResponse = await fetch(`/api/direct-data/user-progress?userId=${encodeURIComponent(userId)}`);
+        
+        // Try direct-data API endpoint
+        const directResponse = await fetch(`/api/direct-data/user-progress?userId=${userId}`);
         
         if (directResponse.ok) {
-          const directData = await directResponse.json();
+          directData = await directResponse.json();
           
-          if (directData.success && directData.records && directData.records.length > 0) {
-            console.log(`API: Direct API returned ${directData.records.length} records via ${directData.method}`);
-            return directData.records;
-          } else {
-            console.log("API: Direct API returned no records or was unsuccessful");
+          if (directData.records && directData.records.length > 0) {
+            return directData;
           }
         } else {
-          console.error(`API: Direct API failed with status ${directResponse.status}`);
+          // Direct API failed with status
         }
       } catch (directError) {
-        console.error("API: Error using direct data API:", directError);
+        // Error using direct data API
       }
       
-      // Fall back to the main API endpoint
-      const response = await fetch(`/api/user-progress?userId=${encodeURIComponent(userId)}`);
+      // Last resort - try the full user-progress API
+      const apiResponse = await fetch(`/api/user-progress?userId=${userId}`);
+      const data = await apiResponse.json();
       
-      if (!response.ok) {
-        throw new Error(`API returned status ${response.status}`);
+      if (data.error) {
+        // Error in response
+        throw new Error(data.error);
       }
       
-      const data = await response.json();
-      console.log("API: Fetched progress data:", data);
-      
-      if (data.success && data.records) {
-        return data.records;
-      } else {
-        console.error("API: Error in response:", data.error || "Unknown error");
-        return [];
-      }
+      return data;
     } catch (error) {
-      console.error("API: Error fetching from API:", error);
-      return [];
+      // Error fetching from API
+      return { records: [], method: 'failed' };
     }
   };
   
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      console.log(`Profile: Fetching data for user ${user.id}`);
-
+    if (!user && !isLoaded) return;
+    
+    async function fetchUserData() {
       try {
-        // First, verify if this user ID exists in user_profiles to get the correct format
-        const { data: userProfileData, error: userProfileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle(); // Use maybeSingle to avoid multiple rows error
+        const userIdToUse = user?.id || demoUserId;
         
-        if (userProfileError) {
-          console.error("Error fetching user profile directly:", userProfileError);
-        }
-        
-        // If we found a matching user profile, use that user_id
-        // Otherwise, try querying with the original user.id
-        const userIdToUse = userProfileData ? userProfileData.user_id : user.id;
-        
-        console.log("Using user ID for queries:", userIdToUse);
-        
-        // Skip recalculation if it's causing errors
-        try {
-          await updateUserProfile(userIdToUse);
-          console.log("Successfully updated user profile");
-        } catch (updateError) {
-          console.error("Error updating user profile:", updateError);
-          // Continue with the rest of the function even if update fails
-        }
-        
-        // Fetch user profile
+        // Fetch user profile directly from Supabase
         let profileData;
         try {
-          const { data, error: profileError } = await getUserProfile(userIdToUse);
-          
-          if (profileError) {
-            console.error("Error fetching user profile:", profileError);
-          } else if (data) {
-            profileData = data;
-            setProfile(profileData);
-            console.log("Profile: User profile data fetched successfully:", profileData);
-          }
-        } catch (profileFetchError) {
-          console.error("Exception fetching profile:", profileFetchError);
+          // Try with authenticated client first
+          profileData = await getUserProfile(userIdToUse);
+        } catch (userProfileError) {
+          // Error fetching user profile directly
         }
         
-        // If we still don't have profile data, create a default profile
-        if (!profileData) {
-          console.log("No profile data, creating default profile");
-          setProfile({
+        // If we have a profile, update state
+        if (profileData && profileData.data) {
+          // Set user name from profile if available
+          setUsername(profileData.data.display_name || 'Speech User');
+          setStreakCount(profileData.data.streak_count || 0);
+          setTotalExercises(profileData.data.overall_progress || 0);
+          
+          // Update profile with latest activity timestamp to track user engagement
+          try {
+            await updateUserProfile(userIdToUse);
+          } catch (updateError) {
+            // Error updating user profile
+          }
+        } else {
+          // No profile data, creating default
+          
+          // Create a default profile for this user
+          await upsertUserProfile({
             user_id: userIdToUse,
-            overall_progress: 0,
+            display_name: user?.firstName || 'Speech User',
             streak_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            avatar_color: '#4F46E5'
+            last_login: new Date().toISOString(),
+            overall_progress: 0
           });
         }
         
-        // Try fetching exercise history using our enhanced API function
         // This will try multiple endpoints to get the most complete data
-        console.log("Profile: Fetching exercise history using enhanced API...");
-        const exerciseData = await fetchUserProgressFromApi(userIdToUse);
+        const exerciseData = await fetchUserProgressFromAPI(userIdToUse);
         
-        if (exerciseData && exerciseData.length > 0) {
-          console.log(`Profile: Successfully retrieved ${exerciseData.length} exercise records`);
+        if (exerciseData && exerciseData.records && exerciseData.records.length > 0) {
+          // Successfully retrieved exercise records
+          
           // Sort by most recent first
-          const sortedProgress = [...exerciseData].sort((a, b) => 
+          const sortedProgress = [...exerciseData.records].sort((a, b) => 
             new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
           );
-          setExerciseHistory(sortedProgress);
-        } else {
-          console.log("Profile: No exercise data found, creating sample data for demo");
-          // Create sample exercise data for demo
-          const sampleExercises = [
-            {
-              id: "1",
-              user_id: userIdToUse,
-              exercise_id: "repeat-practice-1",
-              score: 85,
-              attempts: 1,
-              completed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-              created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-              updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: "2", 
-              user_id: userIdToUse,
-              exercise_id: "reading-vowel-1234",
-              score: 92,
-              attempts: 2,
-              completed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-              created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-              updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: "3",
-              user_id: userIdToUse,
-              exercise_id: "repeat-Sally%20sells%20seashells",
-              score: 75,
-              attempts: 3,
-              completed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-              created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-              updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: "4",
-              user_id: userIdToUse,
-              exercise_id: "repeat-Look%20at%20the%20little%20lake",
-              score: 100,
-              attempts: 1,
-              completed_at: new Date().toISOString(), // Today
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-          ];
           
-          // Use the sample data
-          setExerciseHistory(sampleExercises);
+          setExerciseHistory(sortedProgress);
+          setDataFetchMethod(exerciseData.method || 'default');
+          setIsDataLoaded(true);
+        } else {
+          // No exercise data found, creating sample data for demo
+          
+          // If in demo mode, load some sample progress data
+          if (!user || isDemoMode) {
+            const sampleData = await fetch('/api/direct-data/sample-progress').then(res => res.json());
+            setExerciseHistory(sampleData.records || []);
+            setDataFetchMethod('sample');
+            setIsDataLoaded(true);
+          }
         }
         
-        // Fetch achievements (keeping this simple for now)
-        try {
-          const { data: achievementsData, error: achievementsError } = await getUserAchievements(userIdToUse);
-          
-          if (achievementsError) {
-            console.error("Profile: Error fetching achievements:", achievementsError);
-          } else if (achievementsData) {
-            setAchievements(achievementsData);
-          } else {
-            // Default dummy achievements
+        // Fetch achievement data if we have a real user
+        if (user?.id) {
+          try {
+            // TODO: Implement achievement service
+            // For now, use sample achievements
             setAchievements([
-              { id: 1, title: "First Steps", description: "Completed your first exercise", icon: "🏆", date: new Date().toISOString() },
-              { id: 2, title: "Perfect Score", description: "Got 100% on any exercise", icon: "🌟", date: new Date().toISOString() }
+              { id: '1', title: 'First Login', description: 'Welcome to Speech Improvement!', dateEarned: new Date().toISOString() },
+              { id: '2', title: 'Practice Starter', description: 'Complete your first practice session', dateEarned: new Date().toISOString() },
+              { id: '3', title: 'On a Roll', description: 'Practice 3 days in a row', dateEarned: new Date().toISOString() },
+            ]);
+          } catch (achievementsError) {
+            // Error fetching achievements
+            
+            // Use default achievements
+            setAchievements([
+              { id: '1', title: 'First Login', description: 'Welcome to Speech Improvement!', dateEarned: new Date().toISOString() },
             ]);
           }
-        } catch (achievementsError: any) {
-          console.error("Error fetching achievements:", achievementsError);
-          // Set default achievements
-          setAchievements([
-            { id: 1, title: "First Steps", description: "Completed your first exercise", icon: "🏆", date: new Date().toISOString() },
-            { id: 2, title: "Perfect Score", description: "Got 100% on any exercise", icon: "🌟", date: new Date().toISOString() }
-          ]);
         }
-        
       } catch (err) {
-        console.error("Profile: Error fetching user data:", err);
-        setError("Failed to load your profile. Please try refreshing the page.");
-      } finally {
-        setLoading(false);
+        // Error fetching user data
+        setIsDataLoaded(true); // Set to true so we don't show loading state forever
       }
-    };
+    }
     
     fetchUserData();
-  }, [user?.id]);
+  }, [user, isLoaded, demoUserId, isDemoMode]);
+
+  // Handle manual refresh button click
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    
+    try {
+      const userIdToUse = user?.id || demoUserId;
+      
+      // Refresh using enhanced API function to fetch latest data
+      const exerciseData = await fetchUserProgressFromAPI(userIdToUse);
+      
+      if (exerciseData && exerciseData.records && exerciseData.records.length > 0) {
+        // Successfully retrieved exercise records
+        
+        const sortedProgress = [...exerciseData.records].sort((a, b) => 
+          new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
+        );
+        
+        setExerciseHistory(sortedProgress);
+        setDataFetchMethod(exerciseData.method || 'refresh');
+        setLastRefreshTime(new Date().toISOString());
+      } else {
+        // No records found using any method
+        
+        if (!user || isDemoMode) {
+          // For demo mode, fetch sample data
+          const sampleData = await fetch('/api/direct-data/sample-progress').then(res => res.json());
+          setExerciseHistory(sampleData.records || []);
+          setDataFetchMethod('sample-refresh');
+        }
+      }
+    } catch (err) {
+      // Error refreshing data
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
   
   // Toggle debug panel
   const toggleDebug = () => setShowDebug(!showDebug);
-
-  const refreshData = async () => {
-    console.log("Manual refresh triggered");
-    if (!user?.id) return;
-    
-    setLoading(true);
-    try {
-      // Use our enhanced API function that tries multiple endpoints
-      // including the MCP direct API that should return all 15 records
-      console.log("Refresh: Using enhanced API function to fetch latest data");
-      const exerciseData = await fetchUserProgressFromApi(user.id);
-      
-      if (exerciseData && exerciseData.length > 0) {
-        console.log(`Refresh: Successfully retrieved ${exerciseData.length} exercise records`);
-        const sortedProgress = [...exerciseData].sort((a, b) => 
-          new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-        );
-        setExerciseHistory(sortedProgress);
-      } else {
-        console.log("Refresh: No records found using any method");
-        // Keep existing records if any, or set to empty array
-        setExerciseHistory(prev => prev.length > 0 ? prev : []);
-      }
-    } catch (err) {
-      console.error("Profile: Error refreshing data:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -380,7 +320,7 @@ export default function ProfilePage() {
           <button 
             onClick={async () => {
               if (!user?.id) return;
-              const apiResult = await fetchUserProgressFromApi(user.id);
+              const apiResult = await fetchUserProgressFromAPI(user.id);
               setDebugInfo({...debugInfo, apiQueryResult: apiResult});
             }}
             style={{
@@ -775,7 +715,7 @@ export default function ProfilePage() {
                           {exerciseHistory.length} records found
                         </span>
                         <button 
-                          onClick={refreshData}
+                          onClick={handleRefresh}
                           style={{
                             backgroundColor: '#EFF6FF',
                             color: '#2563EB',
@@ -920,7 +860,7 @@ export default function ProfilePage() {
                             color: '#6B7280',
                             whiteSpace: 'nowrap'
                           }}>
-                            {new Date(achievement.date).toLocaleDateString()}
+                            {new Date(achievement.dateEarned).toLocaleDateString()}
                           </div>
                         </div>
                       ))}

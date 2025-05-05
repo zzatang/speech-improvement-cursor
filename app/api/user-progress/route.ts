@@ -1,183 +1,139 @@
-import { supabase } from '@/lib/supabase/client';
-import { auth } from '@clerk/nextjs/server';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/utils/supabase/admin';
 
-// Create a Supabase client with the service role key which bypasses RLS
-const createServiceRoleClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('Missing environment variables for service role client');
-    throw new Error('Missing Supabase environment variables for service role');
+// Create service role client to bypass RLS policies if needed
+let serviceRoleClient: any = null;
+try {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    serviceRoleClient = createAdminClient();
   }
-  
-  console.log('API: Creating service role client to bypass RLS');
-  return createClient(supabaseUrl, supabaseServiceKey);
-};
+} catch (error) {
+  // Missing environment variables for service role client
+}
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get('userId');
-  
-  if (!userId) {
-    return NextResponse.json({ error: 'Missing userId parameter' }, { status: 400 });
-  }
-  
+export async function GET(request: NextRequest) {
   try {
-    console.log(`API: Fetching progress for user ${userId}`);
+    // Get the userId from the request query
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
     
-    // Get auth info from Clerk
-    const { getToken } = await auth();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'No userId provided' }, { status: 400 });
+    }
     
-    // Get the JWT from Clerk with the supabase template
-    const supabaseToken = await getToken({ template: 'supabase' });
+    // Try multiple approaches to get the user progress data
+    // This function implements a fallback sequence to ensure we get the data
     
-    // Create an authenticated client if we have a token
-    let authClient = supabase;
-    if (supabaseToken) {
-      console.log('API: Using authenticated Supabase client');
-      // Fix the way we set the session
-      const { data } = await supabase.auth.setSession({ 
-        access_token: supabaseToken,
-        refresh_token: ''
+    // Creating service role client to bypass RLS
+    
+    // First, try to get data using the user's own request context
+    // This will respect RLS policies but might fail if not properly set up
+    let directData: any[] = [];
+    try {
+      // Fetch user progress from Supabase directly
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/user_progress?user_id=eq.${encodeURIComponent(userId)}&select=*`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+          'Authorization': request.headers.get('Authorization') || `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+        }
       });
-      // Use the same supabase client but now it's authenticated
-      authClient = supabase;
-    } else {
-      console.log('API: No auth token available, using anonymous client');
+      
+      if (response.ok) {
+        directData = await response.json();
+      }
+    } catch (directError) {
+      // Direct query failed
     }
     
-    // First try a direct query with auth if available, which should work with RLS
-    const { data: directData, error: directError } = await authClient
-      .from('user_progress')
-      .select('*')
-      .eq('user_id', userId);
-      
-    if (!directError && directData && directData.length > 0) {
-      console.log(`API: Direct query successful, found ${directData.length} records`);
-      const sortedData = [...directData].sort((a, b) => 
-        new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-      );
-      
-      return NextResponse.json({
-        success: true,
-        userId,
-        records: sortedData,
-        count: sortedData.length,
-        method: 'direct_auth'
+    // If we got data directly, return it
+    if (directData && directData.length > 0) {
+      // Direct query successful, found records
+      return NextResponse.json({ 
+        success: true, 
+        records: directData,
+        method: 'direct' 
       });
     }
     
-    if (directError) {
-      console.error(`API: Direct query failed: ${directError.message}`);
-    }
-    
-    // If direct query failed due to RLS, try with service role key
-    if (directError && directError.message.includes('policy')) {
-      console.log('API: Attempting to bypass RLS with service role key');
+    // If direct query failed or returned no data, try with service role key
+    // This bypasses RLS policies
+    let serviceData: any[] = [];
+    if (serviceRoleClient) {
       try {
-        const serviceClient = createServiceRoleClient();
-        const { data: serviceData, error: serviceError } = await serviceClient
+        // Attempting to bypass RLS with service role key
+        
+        const { data, error } = await serviceRoleClient
           .from('user_progress')
           .select('*')
           .eq('user_id', userId);
-          
-        if (!serviceError && serviceData && serviceData.length > 0) {
-          console.log(`API: Service role query successful, found ${serviceData.length} records`);
-          const sortedData = [...serviceData].sort((a, b) => 
-            new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-          );
-          
-          return NextResponse.json({
-            success: true,
-            userId,
-            records: sortedData,
-            count: sortedData.length,
-            method: 'service_role_bypass'
-          });
-        }
         
-        if (serviceError) {
-          console.error(`API: Service role query failed: ${serviceError.message}`);
+        if (!error && data) {
+          serviceData = data;
+          // Service role query successful, found records
         }
-      } catch (srError) {
-        console.error('API: Error using service role client:', srError);
+      } catch (serviceError) {
+        // Service role query failed
       }
+    } else {
+      // Skip service role client attempt - not available
     }
     
-    // Fetch all progress records globally as another approach
-    const { data: allData, error: allError } = await supabase
-      .from('user_progress')
-      .select('*');
-    
-    // If there was an error fetching all data
-    if (allError) {
-      console.error(`API: Error fetching all progress data: ${allError.message}`);
-      return NextResponse.json({
-        success: false,
-        error: 'Database access restricted. RLS policies are preventing access to data.',
-        message: allError.message
-      }, { status: 403 });
+    // If we got data via service role, return it
+    if (serviceData && serviceData.length > 0) {
+      return NextResponse.json({ 
+        success: true, 
+        records: serviceData,
+        method: 'service-role' 
+      });
     }
     
-    // If we got all data, filter for the user
-    console.log(`API: Found ${allData?.length || 0} total records in database`);
+    // As a last resort, try getting all records and filtering by userId
+    let allData: any[] = [];
+    try {
+      const { data, error } = await serviceRoleClient
+        ? serviceRoleClient.from('user_progress').select('*')
+        : { data: [], error: new Error('No service role client') };
+      
+      if (!error && data) {
+        allData = data;
+      }
+    } catch (allError) {
+      // Error fetching all progress data
+    }
+    
+    // Found total records in database
     
     // Filter records for the specific user
-    const userRecords = allData?.filter(record => record.user_id === userId) || [];
+    const userRecords = allData.filter(record => 
+      record.user_id === userId
+    );
+    
+    // Filtered records for user
     
     if (userRecords.length > 0) {
-      console.log(`API: Filtered ${userRecords.length} records for user ${userId}`);
-      
-      // Sort by completion date
-      const sortedRecords = [...userRecords].sort((a, b) => 
-        new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-      );
-      
-      return NextResponse.json({
-        success: true,
-        userId,
-        records: sortedRecords,
-        count: sortedRecords.length,
-        method: 'filtered_all'
+      return NextResponse.json({ 
+        success: true, 
+        records: userRecords,
+        method: 'filtered-all' 
       });
     }
     
-    // No matching records found for the specific user
-    console.log(`API: No matching records found for user ${userId}`);
-    
-    // Return a sample of all records as demonstration data
-    // This is useful for testing until proper authentication is set up
-    if (allData && allData.length > 0) {
-      const sampleRecords = allData.slice(0, 5).map(record => ({
-        ...record,
-        user_id: userId, // Override to the current user for display purposes
-        note: "Sample data for demonstration only"
-      }));
-      
-      return NextResponse.json({
-        success: true,
-        userId,
-        records: sampleRecords,
-        count: sampleRecords.length,
-        method: 'sample_data',
-        note: 'Using sample data for demonstration. Actual user data not found.'
-      });
-    }
-    
-    return NextResponse.json({
-      success: false,
-      error: 'No records found in database',
-      userId
+    // If we still don't have data, return empty array
+    // No matching records found for user
+    return NextResponse.json({ 
+      success: true, 
+      records: [],
+      method: 'no-results' 
     });
     
   } catch (error) {
-    console.error('API: Unhandled error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    // Unhandled error
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Failed to fetch user progress',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 } 
