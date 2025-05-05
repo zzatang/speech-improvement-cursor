@@ -1166,30 +1166,6 @@ export default function RepeatAfterMePage() {
                         }} />
                       )}
                     </button>
-                    
-                    {/* Generate New Practice button */}
-                    {currentPhrase.focus.includes('Sounds') && (
-                      <button
-                        onClick={() => fetchPracticePhrase()}
-                        disabled={loadingAudio || isPlaying}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          padding: '0.5rem 1rem',
-                          backgroundColor: 'white',
-                          border: '1px solid #D1D5DB',
-                          borderRadius: '0.375rem',
-                          fontSize: '0.875rem',
-                          fontWeight: '500',
-                          color: '#3B82F6',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <RefreshCw style={{ width: '1rem', height: '1rem' }} />
-                        Generate New Phrase
-                      </button>
-                    )}
                   </div>
                   <audio ref={audioRef} className="hidden" />
                   </div>
