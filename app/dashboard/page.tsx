@@ -246,11 +246,8 @@ export default function DashboardPage() {
     // Initial fetch
     fetchUserProfile();
     
-    // Set up periodic refresh (every 30 seconds)
-    const refreshInterval = setInterval(fetchUserProfile, 30000);
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(refreshInterval);
+    // Clean up is no longer needed since we're not setting up an interval
+    return () => {};
   }, [user?.id]);
 
   // Make function accessible to component
