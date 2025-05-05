@@ -265,8 +265,6 @@ export default function ProfilePage() {
     );
   }
 
-  console.log("Profile Render - exerciseHistory:", exerciseHistory);
-
   return (
     <div style={{
       display: 'flex',

@@ -523,12 +523,28 @@ export default function ReadingPracticePage() {
       audioRef.current.src = audioUrl;
       audioRef.current.onended = () => {
         setIsPlayingAudio(false);
+        URL.revokeObjectURL(audioUrl); // Clean up the URL
       };
       
       // Play the audio
-      await audioRef.current.play();
-      setIsPlayingAudio(true);
-      setIsLoadingAudio(false);
+      try {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setIsPlayingAudio(true);
+              setIsLoadingAudio(false);
+            })
+            .catch((e) => {
+              // Handle play() rejection (e.g., user hasn't interacted with document yet)
+              setIsPlayingAudio(false);
+              setIsLoadingAudio(false);
+            });
+        }
+      } catch (playError) {
+        setIsPlayingAudio(false);
+        setIsLoadingAudio(false);
+      }
     } catch (error) {
       // Error playing audio
       setIsPlayingAudio(false);
@@ -536,7 +552,10 @@ export default function ReadingPracticePage() {
     }
   };
   
-  // ... useEffect hooks remain the same ...
+  // Reset the exercise when changing texts
+  useEffect(() => {
+    resetExercise();
+  }, [currentTextIndex]);
 
   // ... rest of component ...
   

@@ -244,9 +244,6 @@ export default function RepeatAfterMePage() {
         // This is a JSON response with text information
         const data = await response.json();
         
-        // Update the display text
-        // console.log(`Updating displayed text to: "${data.text}"`);
-        
         if (data.text) {
           // Update the current phrase text to match what's being spoken
           const updatedPhrases = [...practicePhrases];
@@ -255,7 +252,6 @@ export default function RepeatAfterMePage() {
             text: data.text
           };
           
-          console.log(`Updating displayed text to: "${data.text}"`);
           setPracticePhrases(updatedPhrases);
           
           // Now fetch the audio separately
@@ -280,7 +276,7 @@ export default function RepeatAfterMePage() {
         await processAudioResponse(response);
       }
     } catch (error) {
-      console.error('Error fetching practice phrase:', error);
+      // Error fetching practice phrase
       setLoadingPhrase(false);
       setLoadingAudio(false);
       // Fallback to default TTS if the practice API fails
@@ -338,13 +334,13 @@ export default function RepeatAfterMePage() {
         };
         
         audioRef.current.onerror = (e) => {
-          console.error("Audio playback error:", e);
+          // Audio playback error
           setLoadingAudio(false);
           setIsPlaying(false);
         };
       }
     } catch (error) {
-      console.error("Error playing audio:", error);
+      // Error playing audio
       setLoadingAudio(false);
       setIsPlaying(false);
     }
@@ -395,13 +391,13 @@ export default function RepeatAfterMePage() {
         };
         
         audioRef.current.onerror = (e) => {
-          console.error("Audio playback error:", e);
+          // Audio playback error
           setLoadingAudio(false);
           setIsPlaying(false);
         };
       }
     } catch (error) {
-      console.error("Error playing audio:", error);
+      // Error playing audio
       setLoadingAudio(false);
       setIsPlaying(false);
     }
@@ -453,7 +449,7 @@ export default function RepeatAfterMePage() {
         }
       }, 5000);
     } catch (error) {
-      console.error("Error starting recording:", error);
+      // Error starting recording
     }
   };
   
@@ -549,8 +545,6 @@ export default function RepeatAfterMePage() {
       // Create a consistent exercise ID format that includes phrase focus and difficulty
       const exerciseId = `repeat_${currentPhrase.focus.toLowerCase().replace(/\s+/g, '_')}_${currentPhraseIndex}`;
       
-      console.log(`Saving progress for exercise ID: ${exerciseId}`);
-      
       await saveUserProgress({
         user_id: userId,
         exercise_id: exerciseId,
@@ -569,7 +563,7 @@ export default function RepeatAfterMePage() {
       
       setRecordingComplete(true);
     } catch (error) {
-      console.error('Error analyzing recording:', error);
+      // Error analyzing recording
       setFeedback({
         message: 'Sorry, there was an error analyzing your recording.',
         accuracy: 0,
@@ -655,23 +649,18 @@ export default function RepeatAfterMePage() {
       audioRef.current.src = '';
       setIsPlaying(false);
     }
-    console.log(`Phrase changed to index ${currentPhraseIndex}, focus: ${currentPhrase.focus}`);
   }, [currentPhraseIndex, currentPhrase]);
   
   // Effect to update audio volume when the volume state changes
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = isMuted ? 0 : volumeLevel;
-      console.log(`Applied volume change: ${isMuted ? 'muted' : 'unmuted'}, level: ${audioRef.current.volume}`);
     }
   }, [isMuted, volumeLevel]);
   
   // Update UI element (play button) based on whether we should use the practice API or standard TTS
   const handlePlayButtonClick = () => {
     if (loadingAudio) return;
-    
-    // Debug audio source
-    console.log(`Audio src: ${audioRef.current?.src || 'none'}, ready state: ${audioRef.current?.readyState || 'none'}`);
     
     if (isPlaying) {
       // If already playing, pause the audio
@@ -688,12 +677,24 @@ export default function RepeatAfterMePage() {
         audioRef.current.src !== '' && 
         !audioRef.current.src.endsWith('null') &&
         audioRef.current.readyState > 0) {
-      audioRef.current.play();
-      setIsPlaying(true);
+      try {
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setIsPlaying(true);
+            })
+            .catch(e => {
+              // If play() fails, fall back to fetching new audio
+              playAudio();
+            });
+        }
+      } catch (e) {
+        // If there's an error playing, fall back to fetching new audio
+        playAudio();
+      }
       return;
     }
-    
-    console.log(`Playing audio for current phrase: "${currentPhrase.text}"`);
     
     // Always use standard TTS to play the currently displayed text without changing it
     playAudio();
@@ -710,7 +711,7 @@ export default function RepeatAfterMePage() {
           setStreakCount(profile.streak_count || 0);
         }
       } catch (err) {
-        console.error("Error fetching user profile:", err);
+        // Error fetching user profile
       }
     };
     
@@ -720,7 +721,10 @@ export default function RepeatAfterMePage() {
   // Handle playing audio automatically when it's loaded
   useEffect(() => {
     const audioElement = audioRef.current;
-    if (audioElement && audioElement.src && !isRecording && !recordingComplete) {
+    if (audioElement && audioElement.src && 
+        audioElement.src !== '' && 
+        !audioElement.src.endsWith('null') && 
+        !isRecording && !recordingComplete) {
       const playPromise = audioElement.play();
       if (playPromise !== undefined) {
         playPromise
@@ -728,7 +732,8 @@ export default function RepeatAfterMePage() {
             setIsPlaying(true);
           })
           .catch(e => {
-            // Audio playback error
+            // Audio playback error - silent fail
+            setIsPlaying(false);
           });
       }
     }
