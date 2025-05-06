@@ -9,7 +9,10 @@ interface ExerciseTableProps {
   onDelete?: (exercise: SpeechExercise) => void;
 }
 
-export default function ExerciseTable({ exercises, onView, onEdit, onDelete }: ExerciseTableProps) {
+export default function ExerciseTable({ exercises = [], onView, onEdit, onDelete }: ExerciseTableProps) {
+  // Ensure exercises is always an array
+  const exerciseArray = Array.isArray(exercises) ? exercises : [];
+  
   return (
     <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-200 bg-white">
       <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -23,7 +26,7 @@ export default function ExerciseTable({ exercises, onView, onEdit, onDelete }: E
           </tr>
         </thead>
         <tbody>
-          {exercises.map((exercise, idx) => (
+          {exerciseArray.map((exercise, idx) => (
             <tr key={exercise.id} className={idx % 2 === 0 ? "bg-white" : "bg-blue-50/50 hover:bg-blue-100/60 transition"}>
               <td className="px-6 py-4 font-semibold text-blue-900">{exercise.title}</td>
               <td className="px-6 py-4 text-gray-700 capitalize">{exercise.exercise_type}</td>

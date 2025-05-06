@@ -6,18 +6,20 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Create a mock Supabase client that returns empty data for development/build environments
 const createMockSupabaseClient = () => {
-  console.warn('Using mock Supabase client because API keys are missing');
-  
+  // Silent mock implementation for development
   return {
     from: () => ({
       select: () => ({
         eq: () => ({
           single: async () => ({ data: null, error: null }),
           maybeSingle: async () => ({ data: null, error: null }),
-          order: () => ({ data: [], error: null })
+          order: () => ({ 
+            data: [],  // This should be an array, not null
+            error: null 
+          })
         }),
         order: () => ({
-          data: [],
+          data: [],  // Make sure this is an array
           error: null
         }),
         limit: () => ({

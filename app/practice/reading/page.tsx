@@ -150,10 +150,15 @@ export default function ReadingPracticePage() {
     async function fetchExercises() {
       try {
         setIsLoadingExercises(true);
+        console.log("Fetching reading exercises...");
+        
         // Fetch reading-type exercises from Supabase
         const exercises = await getExercisesByType('reading');
+        console.log("Reading exercises result:", exercises);
         
-        if (exercises && exercises.data && Array.isArray(exercises.data)) {
+        if (exercises && exercises.data && Array.isArray(exercises.data) && exercises.data.length > 0) {
+          console.log(`Found ${exercises.data.length} reading exercises`);
+          
           // Convert Supabase exercises to the format used by this component
           const formattedExercises: ReadingText[] = exercises.data.map(exercise => {
             // Extract content based on the exercise structure
@@ -176,15 +181,68 @@ export default function ReadingPracticePage() {
           });
           
           if (formattedExercises.length > 0) {
+            console.log("Setting formatted reading exercises:", formattedExercises);
             setReadingTexts(formattedExercises);
           } else {
-            // No reading exercises found in Supabase, using fallback data
+            console.warn("No formatted reading exercises found, using fallback data");
+            // Keep default texts as fallback
           }
         } else {
-          // Invalid response from Supabase, using fallback data
+          console.warn("No reading exercises found in database or error occurred, using fallback data");
+          // Check if we're using mock client
+          if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            console.warn("Using sample data because Supabase credentials are missing");
+          }
+          
+          // Provide some sample data for local development or when DB connection fails
+          const sampleTexts: ReadingText[] = [
+            {
+              id: "sample-1",
+              title: "The Rainbow",
+              text: "Red and yellow and pink and green, purple and orange and blue. I can sing a rainbow, sing a rainbow, sing a rainbow too.",
+              focus: "Vowel Sounds",
+              difficulty: "Easy",
+              targetWordsPerMinute: 80
+            },
+            {
+              id: "sample-2",
+              title: "Peter Piper",
+              text: "Peter Piper picked a peck of pickled peppers. A peck of pickled peppers Peter Piper picked. If Peter Piper picked a peck of pickled peppers, where's the peck of pickled peppers Peter Piper picked?",
+              focus: "P Sounds",
+              difficulty: "Hard",
+              targetWordsPerMinute: 110
+            },
+            {
+              id: "sample-3",
+              text: "She sells seashells by the seashore. The shells she sells are surely seashells. So if she sells shells on the seashore, I'm sure she sells seashore shells.",
+              title: "Seashells",
+              focus: "S Sounds",
+              difficulty: "Medium",
+              targetWordsPerMinute: 95
+            },
+            {
+              id: "sample-4",
+              title: "The Weather",
+              text: "Whether the weather is warm, whether the weather is hot, we have to put up with the weather, whether we like it or not.",
+              focus: "Th and W Sounds",
+              difficulty: "Medium",
+              targetWordsPerMinute: 90
+            },
+            {
+              id: "sample-5",
+              title: "Fuzzy Wuzzy",
+              text: "Fuzzy Wuzzy was a bear. Fuzzy Wuzzy had no hair. Fuzzy Wuzzy wasn't fuzzy, was he?",
+              focus: "Z and W Sounds",
+              difficulty: "Easy",
+              targetWordsPerMinute: 85
+            }
+          ];
+          
+          setReadingTexts(sampleTexts);
         }
       } catch (error) {
-        // Error loading reading exercises from Supabase
+        console.error("Error loading reading exercises from Supabase:", error);
+        // Use the default texts in case of error
       } finally {
         setIsLoadingExercises(false);
       }

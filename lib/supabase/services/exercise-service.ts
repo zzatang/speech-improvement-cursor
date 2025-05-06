@@ -46,8 +46,6 @@ export async function saveExercise(
   const supabaseClient = client || supabase;
   
   return safeSupabaseCall<SpeechExercise>(async () => {
-    console.log('Saving exercise with client:', !!client ? 'Authenticated' : 'Default');
-    
     try {
       // If exercise has an ID, update it
       if (exercise.id) {
@@ -59,8 +57,6 @@ export async function saveExercise(
           .single();
         
         if (error) {
-          console.error('Error updating exercise:', error);
-          
           // Check if this is an RLS/auth issue
           if (error.code === '42501' || error.message.includes('policy')) {
             throw new Error('Permission denied: You need to be authenticated with the correct role to update exercises. Please sign in or check your permissions.');
@@ -79,8 +75,6 @@ export async function saveExercise(
           .single();
         
         if (error) {
-          console.error('Error inserting exercise:', error);
-          
           // Check if this is an RLS/auth issue
           if (error.code === '42501' || error.message.includes('policy')) {
             throw new Error('Permission denied: You need to be authenticated with the correct role to add exercises. Please sign in or check your permissions.');
@@ -91,7 +85,6 @@ export async function saveExercise(
         return { data, error: null };
       }
     } catch (err) {
-      console.error('SaveExercise failed:', err);
       throw err;
     }
   });
@@ -117,14 +110,26 @@ export async function deleteExercise(id: string) {
  */
 export async function getExercisesByType(type: string) {
   return safeSupabaseCall<SpeechExercise[]>(async () => {
-    const { data, error } = await supabase
-      .from('speech_exercises')
-      .select('*')
-      .eq('exercise_type', type)
-      .order('difficulty_level', { ascending: true });
-    
-    if (error) throw error;
-    return { data, error: null };
+    try {
+      const { data, error } = await supabase
+        .from('speech_exercises')
+        .select('*')
+        .eq('exercise_type', type)
+        .order('difficulty_level', { ascending: true });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Make sure data is always an array
+      if (!data) {
+        return { data: [], error: null };
+      }
+      
+      return { data, error: null };
+    } catch (err) {
+      throw err;
+    }
   });
 }
 

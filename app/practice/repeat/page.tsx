@@ -131,10 +131,15 @@ export default function RepeatAfterMePage() {
     async function fetchExercises() {
       try {
         setIsLoadingExercises(true);
+        console.log("Fetching repeat exercises...");
+        
         // Fetch repeat-type exercises from Supabase
         const exercises = await getExercisesByType('repeat');
+        console.log("Repeat exercises result:", exercises);
         
-        if (exercises && exercises.data && Array.isArray(exercises.data)) {
+        if (exercises && exercises.data && Array.isArray(exercises.data) && exercises.data.length > 0) {
+          console.log(`Found ${exercises.data.length} repeat exercises`);
+          
           // Convert Supabase exercises to the format used by this component
           const formattedExercises: PracticePhrase[] = exercises.data.map(exercise => {
             // Extract content based on the exercise structure
@@ -159,15 +164,58 @@ export default function RepeatAfterMePage() {
           });
           
           if (formattedExercises.length > 0) {
+            console.log("Setting formatted exercises:", formattedExercises);
             setPracticePhrases(formattedExercises);
           } else {
-            // No exercises found in Supabase, using fallback data
+            console.warn("No formatted exercises found, using fallback data");
+            // Keep default phrases as fallback
           }
         } else {
-          // Invalid response from Supabase, using fallback data
+          console.warn("No exercises found in database or error occured, using fallback data");
+          // Check if we're using mock client
+          if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            console.warn("Using sample data because Supabase credentials are missing");
+          }
+          
+          // Provide some sample data for local development or when DB connection fails
+          const sampleExercises: PracticePhrase[] = [
+            {
+              id: "sample-1",
+              text: "The red rabbit runs rapidly around the room.",
+              focus: "R Sounds",
+              difficulty: "Medium"
+            },
+            {
+              id: "sample-2",
+              text: "Sally sells seashells by the seashore.",
+              focus: "S Sounds",
+              difficulty: "Hard"
+            },
+            {
+              id: "sample-3",
+              text: "Look at the little lion lounging lazily.",
+              focus: "L Sounds",
+              difficulty: "Easy"
+            },
+            {
+              id: "sample-4",
+              text: "Three thin thinkers thought thoughtful thoughts.",
+              focus: "Th Sounds",
+              difficulty: "Hard"
+            },
+            {
+              id: "sample-5",
+              text: "Please play with the purple and pink puppies.",
+              focus: "P Sounds",
+              difficulty: "Medium"
+            }
+          ];
+          
+          setPracticePhrases(sampleExercises);
         }
       } catch (error) {
-        // Error loading exercises from Supabase
+        console.error("Error loading exercises from Supabase:", error);
+        // Use the default phrases in case of error
       } finally {
         setIsLoadingExercises(false);
         setLoading(false);

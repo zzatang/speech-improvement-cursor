@@ -50,15 +50,72 @@ export default function ExercisesAdminPage() {
   const isAdmin = profile && ((profile as any).role === 'admin');
 
   // React Query: Fetch exercises
-  const { data: exercises = [], isLoading, isError, error } = useQuery({
+  const { 
+    data: exercisesResponse, 
+    isLoading, 
+    isError, 
+    error 
+  } = useQuery({
     queryKey: ['exercises'],
-    queryFn: getAllExercises,
+    queryFn: async () => {
+      try {
+        const result = await getAllExercises();
+        
+        // For development mode: return sample exercises when no env vars
+        if (!result.data || result.data.length === 0) {
+          if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            // Return sample exercises when in mock/dev mode for better UX
+            return { 
+              data: [
+                {
+                  id: '1',
+                  title: 'Sample Exercise 1',
+                  description: 'This is a sample exercise for development',
+                  exercise_type: 'repeat',
+                  content: { 
+                    focus: 'S Sounds',
+                    phrases: ['Sally sells seashells by the seashore']
+                  },
+                  difficulty_level: 1,
+                  age_group: '8-13',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                },
+                {
+                  id: '2',
+                  title: 'Sample Exercise 2',
+                  description: 'Another sample exercise',
+                  exercise_type: 'reading',
+                  content: { 
+                    text: 'The quick brown fox jumps over the lazy dog.',
+                    focus: 'Smooth Reading'
+                  },
+                  difficulty_level: 2,
+                  age_group: '8-13',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                }
+              ],
+              error: null
+            };
+          }
+        }
+        
+        return result;
+      } catch (err) {
+        console.error('Error fetching exercises:', err);
+        throw err;
+      }
+    },
     enabled: !!isAdmin,
   });
 
+  // Extract the exercises from the response
+  const exercises = exercisesResponse?.data || [];
+
   // Mutations
   const saveMutation = useMutation({
-    mutationFn: (exerciseData: Partial<SpeechExercise>) => {
+    mutationFn: async (exerciseData: Partial<SpeechExercise>) => {
       if (!isSignedIn) {
         return Promise.reject(new Error("You must be signed in to create or edit exercises"));
       }
@@ -66,8 +123,23 @@ export default function ExercisesAdminPage() {
         return Promise.reject(new Error("Supabase client not available. Please refresh the page."));
       }
       
-      // Log the clerk session status
-      console.log("Attempting to save exercise with auth status:", isSignedIn ? "Signed in" : "Not signed in");
+      // Check if we're in mock mode (Supabase env vars missing)
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        // Create a mock response for add/update
+        return new Promise<{data: SpeechExercise, error: null}>((resolve) => {
+          setTimeout(() => {
+            // Mock response with ID and timestamps
+            const mockResponse = {
+              ...exerciseData,
+              id: exerciseData.id || `mock-${Date.now()}`,
+              created_at: exerciseData.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            } as SpeechExercise;
+            
+            resolve({data: mockResponse, error: null});
+          }, 500); // simulate network delay
+        });
+      }
       
       // Use the authenticated client for the operation
       return saveExercise(exerciseData, supabaseClient);
@@ -99,7 +171,19 @@ export default function ExercisesAdminPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteExercise(id),
+    mutationFn: async (id: string) => {
+      // Check if we're in mock mode (Supabase env vars missing)
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        // Create a mock delete response
+        return new Promise<{data: null, error: null}>((resolve) => {
+          setTimeout(() => {
+            resolve({data: null, error: null});
+          }, 500); // simulate network delay
+        });
+      }
+      
+      return deleteExercise(id);
+    },
     onSuccess: () => {
       toast.success('Exercise deleted');
       queryClient.invalidateQueries({ queryKey: ['exercises'] });
@@ -136,13 +220,11 @@ export default function ExercisesAdminPage() {
 
   // Filter exercises based on selected difficulty
   const filteredExercises = React.useMemo(() => {
-    const exerciseArray = Array.isArray(exercises) ? exercises : [];
-    
     if (!difficultyFilter) {
-      return exerciseArray;
+      return exercises;
     }
     
-    return exerciseArray.filter((exercise: SpeechExercise) => exercise.difficulty_level === difficultyFilter);
+    return exercises.filter((exercise: SpeechExercise) => exercise.difficulty_level === difficultyFilter);
   }, [exercises, difficultyFilter]);
 
   // Update contentText when currentExercise changes
@@ -258,19 +340,24 @@ export default function ExercisesAdminPage() {
             </svg>
           </div>
         )}
-        {!isLoading && (Array.isArray(exercises) ? exercises.length === 0 : true) && (
-          <div className="text-center text-gray-500 py-12">
-            <p className="text-lg">No exercises found.</p>
-            <p className="text-sm">Add your first exercise to get started!</p>
-          </div>
-        )}
         
-        <ExerciseTable
-          exercises={filteredExercises}
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
+        {!isLoading && (
+          <>
+            {filteredExercises.length === 0 ? (
+              <div className="text-center text-gray-500 py-12">
+                <p className="text-lg">No exercises found.</p>
+                <p className="text-sm">Add your first exercise to get started!</p>
+              </div>
+            ) : (
+              <ExerciseTable
+                exercises={filteredExercises}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            )}
+          </>
+        )}
         <ExerciseModal
           open={isModalOpen}
           onClose={() => {
