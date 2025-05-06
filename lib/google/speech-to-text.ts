@@ -131,6 +131,7 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
       config: {
         languageCode: options.languageCode || defaultLanguageCode,
         encoding: 'WEBM_OPUS',
+        sampleRateHertz: 48000, // Add explicit sample rate for Opus
         enableAutomaticPunctuation: options.enableAutomaticPunctuation !== undefined 
           ? options.enableAutomaticPunctuation 
           : defaultEnablePunctuation,

@@ -231,8 +231,22 @@ export default function ReadingPracticePage() {
       setIsPlayingAudio(false);
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      // Request audio with a specific sample rate
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 48000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      });
+      
+      // Create MediaRecorder with specific MIME type and bitrate
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 128000
+      });
+      
       audioChunksRef.current = [];
       
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -242,8 +256,8 @@ export default function ReadingPracticePage() {
       };
       
       mediaRecorderRef.current.onstop = async () => {
-        // Create Blob without forcing type - let browser default apply
-        const audioBlob = new Blob(audioChunksRef.current);
+        // Create Blob with explicit type for Opus
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
         
         analyzeRecording(audioBlob);
       };
