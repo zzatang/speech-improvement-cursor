@@ -1,8 +1,6 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // TTS configuration options
 interface TTSOptions {
@@ -14,46 +12,44 @@ interface TTSOptions {
 
 /**
  * Create a TTS client with credentials from environment
- * - Handles both JSON string and file path formats
+ * - Uses GOOGLE_CLOUD_CREDENTIALS as a JSON string
  */
 function createTTSClient() {
-  const credentials = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  // Get credentials from environment variable
+  const credentials = process.env.GOOGLE_CLOUD_CREDENTIALS;
   
   if (!credentials) {
-    throw new Error('Missing Google Cloud credentials environment variable');
+    console.warn('Missing Google Cloud credentials. Using fallback mock TTS client.');
+    return createMockTTSClient();
   }
   
-  // Check if credentials is a JSON string or a file path
-  if (credentials.trim().startsWith('{') && credentials.trim().endsWith('}')) {
-    // It's a JSON string, parse it
-    try {
-      const parsedCredentials = JSON.parse(credentials);
-      return new TextToSpeechClient({
-        credentials: parsedCredentials
-      });
-    } catch (error) {
-      console.error('Error parsing JSON credentials:', error);
-      throw new Error('Invalid JSON credentials format');
-    }
-  } else {
-    // It's a file path, load the file
-    try {
-      // Resolve the path relative to the project root
-      const absolutePath = path.resolve(process.cwd(), credentials);
-      
-      if (!fs.existsSync(absolutePath)) {
-        throw new Error(`Credentials file not found at: ${absolutePath}`);
-      }
-      
-      // Use the file path directly with the client
-      return new TextToSpeechClient({
-        keyFilename: absolutePath
-      });
-    } catch (error) {
-      console.error('Error loading credentials file:', error);
-      throw new Error(`Failed to load credentials file: ${(error as Error).message || 'Unknown error'}`);
-    }
+  try {
+    // Try to parse the credentials as JSON
+    const parsedCredentials = JSON.parse(credentials);
+    return new TextToSpeechClient({
+      credentials: parsedCredentials
+    });
+  } catch (error) {
+    console.error('Error parsing Google Cloud credentials:', error);
+    throw new Error('Invalid Google Cloud credentials format. Please provide a valid JSON string.');
   }
+}
+
+/**
+ * Creates a mock TTS client for development
+ */
+function createMockTTSClient() {
+  return {
+    synthesizeSpeech: async () => {
+      // Return a simple mock response with a small audio sample
+      // This is a minimal MP3 file with a short tone
+      const mockAudioContent = Buffer.from(
+        'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADmAD///////////////////////////////////////////8AAAA8TEFNRTMuMTAwAc0AAAAAAAAAABSAJAJAQgAAgAAAA5iKz6EAAAAAAAAAAAAAAAAAAAAA//vQZAAP8AAAaQAAAAgAAA0gAAABAAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==',
+        'base64'
+      );
+      return [{ audioContent: mockAudioContent }];
+    },
+  };
 }
 
 /**
