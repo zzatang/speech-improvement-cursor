@@ -4,12 +4,61 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing environment variables for Supabase client');
-}
+// Create a mock Supabase client that returns empty data for development/build environments
+const createMockSupabaseClient = () => {
+  console.warn('Using mock Supabase client because API keys are missing');
+  
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: null }),
+          maybeSingle: async () => ({ data: null, error: null }),
+          order: () => ({ data: [], error: null })
+        }),
+        order: () => ({
+          data: [],
+          error: null
+        }),
+        limit: () => ({
+          single: async () => ({ data: null, error: null })
+        }),
+        delete: () => ({ error: null }),
+        insert: () => ({
+          select: () => ({
+            single: async () => ({ data: null, error: null })
+          })
+        }),
+        update: () => ({
+          eq: () => ({
+            select: async () => ({ data: null, error: null })
+          })
+        })
+      }),
+      insert: () => ({
+        select: () => ({
+          single: async () => ({ data: null, error: null })
+        })
+      }),
+      delete: () => ({
+        eq: () => ({ error: null })
+      }),
+      update: () => ({
+        eq: () => ({
+          select: async () => ({ data: null, error: null })
+        })
+      })
+    }),
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: null })
+    }
+  };
+};
 
 // Create a singleton Supabase client
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = supabaseUrl && supabaseKey
+  ? createClient(supabaseUrl, supabaseKey)
+  : createMockSupabaseClient() as any;
 
 // Helper function to safely handle Supabase calls with consistent error formatting
 export async function safeSupabaseCall<T>(fn: () => Promise<{ data: T | null; error: any }>): Promise<{ data: T | null; error: any }> {

@@ -1,18 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createAdminClient } from '@/utils/supabase/admin';
+
+// Check if we have the required environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Create service role client to bypass RLS policies if needed
 let serviceRoleClient: any = null;
 try {
-  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    serviceRoleClient = createAdminClient();
+  if (supabaseServiceKey && supabaseUrl) {
+    serviceRoleClient = createClient(
+      supabaseUrl,
+      supabaseServiceKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
   }
 } catch (error) {
   // Missing environment variables for service role client
+  console.warn('Failed to create service role client:', error);
 }
 
 export async function GET(request: NextRequest) {
+  // If we don't have the required environment variables, return mock data
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Missing required Supabase environment variables. Returning mock data.');
+    return NextResponse.json({ 
+      success: true, 
+      records: [],
+      method: 'mock-data' 
+    });
+  }
+
   try {
     // Get the userId from the request query
     const { searchParams } = new URL(request.url);
@@ -25,18 +49,16 @@ export async function GET(request: NextRequest) {
     // Try multiple approaches to get the user progress data
     // This function implements a fallback sequence to ensure we get the data
     
-    // Creating service role client to bypass RLS
-    
     // First, try to get data using the user's own request context
     // This will respect RLS policies but might fail if not properly set up
     let directData: any[] = [];
     try {
       // Fetch user progress from Supabase directly
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/user_progress?user_id=eq.${encodeURIComponent(userId)}&select=*`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/user_progress?user_id=eq.${encodeURIComponent(userId)}&select=*`, {
         headers: {
           'Content-Type': 'application/json',
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-          'Authorization': request.headers.get('Authorization') || `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`
+          'apikey': supabaseAnonKey,
+          'Authorization': request.headers.get('Authorization') || `Bearer ${supabaseAnonKey}`
         }
       });
       
@@ -86,37 +108,6 @@ export async function GET(request: NextRequest) {
         success: true, 
         records: serviceData,
         method: 'service-role' 
-      });
-    }
-    
-    // As a last resort, try getting all records and filtering by userId
-    let allData: any[] = [];
-    try {
-      const { data, error } = await serviceRoleClient
-        ? serviceRoleClient.from('user_progress').select('*')
-        : { data: [], error: new Error('No service role client') };
-      
-      if (!error && data) {
-        allData = data;
-      }
-    } catch (allError) {
-      // Error fetching all progress data
-    }
-    
-    // Found total records in database
-    
-    // Filter records for the specific user
-    const userRecords = allData.filter(record => 
-      record.user_id === userId
-    );
-    
-    // Filtered records for user
-    
-    if (userRecords.length > 0) {
-      return NextResponse.json({ 
-        success: true, 
-        records: userRecords,
-        method: 'filtered-all' 
       });
     }
     

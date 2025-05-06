@@ -22,8 +22,8 @@ export async function GET() {
       .select('*');
     
     // Get unique user IDs from both tables
-    const profileUserIds = profiles ? [...new Set(profiles.map(p => p.user_id))] : [];
-    const progressUserIds = progress ? [...new Set(progress.map(p => p.user_id))] : [];
+    const profileUserIds = profiles ? [...new Set(profiles.map((p: any) => p.user_id))] : [];
+    const progressUserIds = progress ? [...new Set(progress.map((p: any) => p.user_id))] : [];
     
     // Find user IDs that exist in progress but not in profiles
     const orphanedProgressIds = progressUserIds.filter(id => !profileUserIds.includes(id));

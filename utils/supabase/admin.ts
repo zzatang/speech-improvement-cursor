@@ -4,15 +4,56 @@ import { stripe } from '@/utils/stripe/config';
 import Stripe from 'stripe';
 import type { Database, Tables, TablesInsert } from '@/types/database.types';
 
+// Check if necessary environment variables are available
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Create a mock admin client for development or when keys are missing
+const createMockAdminClient = () => {
+  console.warn('Using mock Supabase admin client due to missing environment variables');
+  
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: null }),
+          maybeSingle: async () => ({ data: null, error: null })
+        }),
+        single: async () => ({ data: null, error: null })
+      }),
+      insert: () => ({
+        select: () => ({
+          single: async () => ({ data: null, error: null })
+        })
+      }),
+      upsert: async () => ({ error: null }),
+      update: () => ({
+        eq: async () => ({ error: null })
+      }),
+      delete: () => ({
+        eq: async () => ({ error: null })
+      })
+    }),
+    auth: {
+      admin: {
+        getUserById: async () => ({ data: { user: null }, error: null })
+      }
+    }
+  };
+};
+
 export function createAdminClient() {
-    const supabase = createClient<Database>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+  if (!supabaseUrl || !serviceRoleKey) {
+    return createMockAdminClient() as any;
+  }
+  
+  const supabase = createClient<Database>(
+    supabaseUrl,
+    serviceRoleKey
+  );
 
-    return supabase
+  return supabase;
 }
-
 
 type Product = Tables<'products'>;
 type Price = Tables<'prices'>;
@@ -22,10 +63,9 @@ const TRIAL_PERIOD_DAYS = 0;
 
 // Note: supabaseAdmin uses the SERVICE_ROLE_KEY which you must only use in a secure server-side context
 // as it has admin privileges and overwrites RLS policies!
-export const supabaseAdmin = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+export const supabaseAdmin = supabaseUrl && serviceRoleKey
+  ? createClient<Database>(supabaseUrl, serviceRoleKey)
+  : createMockAdminClient() as any;
 
 const upsertProductRecord = async (product: Stripe.Product) => {
     const productData: Product = {

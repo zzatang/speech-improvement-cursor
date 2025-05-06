@@ -47,34 +47,30 @@ function mapSettingsToSupabase(data: Partial<AppSettings>) {
 
 // Update settings in Supabase (update the first row)
 export async function updateSettings(supabaseClient: any, newSettings: Partial<AppSettings>): Promise<void> {
-  const result = await safeSupabaseCall<void>(async () => {
-    try {
-      // Fetch the first row
-      const { data: existing, error: fetchError } = await supabaseClient
-        .from('app_settings')
-        .select('id')
-        .limit(1)
-        .single();
-      console.log('Fetched existing row:', existing);
-      
-      if (fetchError) throw fetchError;
-      if (!existing?.id) throw new Error('No settings row found');
-      
-      const updatePayload = { ...mapSettingsToSupabase(newSettings), updated_at: new Date().toISOString() };
-      console.log('Updating settings row:', updatePayload);
-      
-      const { data: updateResult, error } = await supabaseClient
-        .from('app_settings')
-        .update(updatePayload)
-        .eq('id', existing.id)
-        .select();
-      console.log('Update result:', updateResult);
-      
-      if (error) throw error;
-    } catch (e) {
-      console.error('Error in updateSettings:', e);
-      throw e;
-    }
+  const result = await safeSupabaseCall<null>(async () => {
+    // Fetch the first row
+    const { data: existing, error: fetchError } = await supabaseClient
+      .from('app_settings')
+      .select('id')
+      .limit(1)
+      .single();
+    console.log('Fetched existing row:', existing);
+    
+    if (fetchError) throw fetchError;
+    if (!existing?.id) throw new Error('No settings row found');
+    
+    const updatePayload = { ...mapSettingsToSupabase(newSettings), updated_at: new Date().toISOString() };
+    console.log('Updating settings row:', updatePayload);
+    
+    const { data: updateResult, error } = await supabaseClient
+      .from('app_settings')
+      .update(updatePayload)
+      .eq('id', existing.id)
+      .select();
+    console.log('Update result:', updateResult);
+    
+    if (error) throw error;
+    return { data: null, error: null };
   });
   return;
 } 

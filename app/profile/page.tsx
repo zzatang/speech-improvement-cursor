@@ -308,7 +308,7 @@ export default function ProfilePage() {
           <button 
             onClick={async () => {
               const { data } = await supabase.from('user_progress').select('user_id').limit(20);
-              const uniqueIds = [...new Set(data?.map(d => d.user_id) || [])];
+              const uniqueIds = [...new Set(data?.map((d: any) => d.user_id) || [])];
               setDebugInfo({...debugInfo, allUserIds: uniqueIds});
             }}
             style={{
