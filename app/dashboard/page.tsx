@@ -1094,19 +1094,6 @@ export default function DashboardPage() {
             My Profile
           </Link>
           
-          <Link href="/profile_test" style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0.5rem 1rem',
-            backgroundColor: '#ECFDF5',
-            borderRadius: '0.5rem',
-            color: '#059669',
-            fontWeight: '500',
-          }}>
-            <BarChart2 style={{ marginRight: '0.5rem', width: '1rem', height: '1rem' }} />
-            Test Profile Page
-          </Link>
-          
           {user && (
             <Link href="/admin" style={{
               display: 'flex',
