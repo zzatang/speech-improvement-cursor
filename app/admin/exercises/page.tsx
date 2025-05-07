@@ -113,6 +113,57 @@ export default function ExercisesAdminPage() {
   // Extract the exercises from the response
   const exercises = exercisesResponse?.data || [];
 
+  // Memoize the processed exercises array
+  const memoizedExercises = React.useMemo(() => exercises, [exercisesResponse]);
+
+  // Form state
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentExercise, setCurrentExercise] = useState<SpeechExercise>({
+    id: '',
+    title: '',
+    description: null,
+    exercise_type: 'repeat',
+    content: {},
+    difficulty_level: 1,
+    age_group: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+
+  // For content editing as a string
+  const [contentText, setContentText] = useState('{}');
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<SpeechExercise | null>(null);
+  
+  // Add filter state
+  const [difficultyFilter, setDifficultyFilter] = useState<number | null>(null);
+
+  // Filter exercises based on selected difficulty
+  const filteredExercises = React.useMemo(() => {
+    if (!difficultyFilter) {
+      return memoizedExercises;
+    }
+    
+    return memoizedExercises.filter((exercise: SpeechExercise) => exercise.difficulty_level === difficultyFilter);
+  }, [memoizedExercises, difficultyFilter]);
+
+  // Update contentText when currentExercise changes
+  useEffect(() => {
+    if (currentExercise.content) {
+      try {
+        setContentText(JSON.stringify(currentExercise.content, null, 2));
+      } catch (err) {
+        console.error('Error stringifying content:', err);
+        setContentText('{}');
+      }
+    } else {
+      setContentText('{}');
+    }
+  }, [currentExercise.content]);
+
   // Mutations
   const saveMutation = useMutation({
     mutationFn: async (exerciseData: Partial<SpeechExercise>) => {
@@ -192,54 +243,6 @@ export default function ExercisesAdminPage() {
     },
     onError: (err: any) => toast.error(err.message || 'Failed to delete exercise'),
   });
-
-  // Form state
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentExercise, setCurrentExercise] = useState<SpeechExercise>({
-    id: '',
-    title: '',
-    description: null,
-    exercise_type: 'repeat',
-    content: {},
-    difficulty_level: 1,
-    age_group: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  });
-
-  // For content editing as a string
-  const [contentText, setContentText] = useState('{}');
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [selectedExercise, setSelectedExercise] = useState<SpeechExercise | null>(null);
-  
-  // Add filter state
-  const [difficultyFilter, setDifficultyFilter] = useState<number | null>(null);
-
-  // Filter exercises based on selected difficulty
-  const filteredExercises = React.useMemo(() => {
-    if (!difficultyFilter) {
-      return exercises;
-    }
-    
-    return exercises.filter((exercise: SpeechExercise) => exercise.difficulty_level === difficultyFilter);
-  }, [exercises, difficultyFilter]);
-
-  // Update contentText when currentExercise changes
-  useEffect(() => {
-    if (currentExercise.content) {
-      try {
-        setContentText(JSON.stringify(currentExercise.content, null, 2));
-      } catch (err) {
-        console.error('Error stringifying content:', err);
-        setContentText('{}');
-      }
-    } else {
-      setContentText('{}');
-    }
-  }, [currentExercise.content]);
 
   // Handlers
   const handleAdd = () => {
