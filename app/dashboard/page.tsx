@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [avatarAccessories, setAvatarAccessories] = useState<string[]>([]);
   const [exerciseHistory, setExerciseHistory] = useState<any[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const { user } = useUser();
 
@@ -162,6 +163,7 @@ export default function DashboardPage() {
           
           setProgress(0);
           setStreakCount(0);
+          setIsAdmin(false);
         } else if (profileData) {
           // Override with fixed values for testing
           setProgress(75); 
@@ -173,6 +175,9 @@ export default function DashboardPage() {
           
           setAvatarColor(profileData.avatar_color || "#4F46E5");
           setAvatarAccessories(profileData.avatar_accessories || []);
+          
+          // Check if user is admin
+          setIsAdmin((profileData as any).role === 'admin');
         }
         
         // Fetch exercise history using direct data API instead of Supabase RLS
@@ -1059,42 +1064,42 @@ export default function DashboardPage() {
       </main>
 
       {/* Additional Navigation Links Section */}
-      <div style={{
-        maxWidth: '1200px',
-        margin: '2rem auto 0 auto',
-        padding: '1rem',
-        backgroundColor: 'white',
-        borderRadius: '0.5rem',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-      }}>
-        <h3 style={{ 
-          fontSize: '1.1rem', 
-          fontWeight: 'bold', 
-          marginBottom: '1rem',
-          color: '#4B5563',
-        }}>
-          Quick Links
-        </h3>
-        
+      {user && isAdmin && (
         <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '1rem',
+          maxWidth: '1200px',
+          margin: '2rem auto 0 auto',
+          padding: '1rem',
+          backgroundColor: 'white',
+          borderRadius: '0.5rem',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         }}>
-          <Link href="/profile" style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0.5rem 1rem',
-            backgroundColor: '#EFF6FF',
-            borderRadius: '0.5rem',
-            color: '#2563EB',
-            fontWeight: '500',
+          <h3 style={{ 
+            fontSize: '1.1rem', 
+            fontWeight: 'bold', 
+            marginBottom: '1rem',
+            color: '#4B5563',
           }}>
-            <User style={{ marginRight: '0.5rem', width: '1rem', height: '1rem' }} />
-            My Profile
-          </Link>
+            Quick Links
+          </h3>
           
-          {user && (
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '1rem',
+          }}>
+            <Link href="/profile" style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0.5rem 1rem',
+              backgroundColor: '#EFF6FF',
+              borderRadius: '0.5rem',
+              color: '#2563EB',
+              fontWeight: '500',
+            }}>
+              <User style={{ marginRight: '0.5rem', width: '1rem', height: '1rem' }} />
+              My Profile
+            </Link>
+            
             <Link href="/admin" style={{
               display: 'flex',
               alignItems: 'center',
@@ -1107,9 +1112,9 @@ export default function DashboardPage() {
               <ShieldCheck style={{ marginRight: '0.5rem', width: '1rem', height: '1rem' }} />
               Admin Panel
             </Link>
-          )}
+          </div>
         </div>
-      </div>
+      )}
       
       {/* Footer */}
       <footer style={{ 
