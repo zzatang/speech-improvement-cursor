@@ -1,100 +1,78 @@
 # Vercel Deployment Guide
 
-This document provides detailed instructions for deploying the Speech Improvement application to Vercel, ensuring all environment variables are correctly configured.
+This guide explains how to set up continuous deployment to Vercel for the Speech Improvement application.
 
-## Prerequisites
+## Setting Up GitHub Actions for Vercel Deployment
 
-Before deploying to Vercel, ensure you have:
+The application is configured to deploy automatically to Vercel when changes are pushed to the `main` branch and pass all CI checks.
 
-- A [Vercel account](https://vercel.com/signup)
-- Your GitHub repository connected to Vercel
-- Access to all required API keys and credentials
+### Prerequisites
 
-## Deployment Methods
+1. A Vercel account linked to your GitHub repository
+2. A Vercel project created for this application
 
-You can deploy to Vercel using one of these methods:
+### Setting Up the Vercel Token
 
-1. **GitHub Integration (Recommended)**: Automatic deployments triggered by Git commits
-2. **Vercel CLI**: Manual deployments using the command line
-3. **GitHub Actions**: CI/CD pipeline we've already set up
+1. **Generate a Vercel Token**:
+   - Log in to your [Vercel dashboard](https://vercel.com/dashboard)
+   - Go to Settings → Tokens
+   - Create a new token with a descriptive name (e.g., "GitHub Actions Deployment")
+   - Set the appropriate scope (usually "Full Account" is needed for deployment)
+   - Copy the generated token
 
-## Method 1: GitHub Integration
+2. **Add the Token to GitHub Secrets**:
+   - Go to your GitHub repository
+   - Navigate to Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `VERCEL_TOKEN`
+   - Value: Paste the token you copied from Vercel
+   - Click "Add secret"
 
-### Step 1: Connect Repository
+3. **Verify the Secret is Available**:
+   - The deployment workflow will now have access to the token
+   - Check the Actions tab to see if deployments are running properly
 
-1. Log in to your [Vercel dashboard](https://vercel.com/dashboard)
-2. Click "Add New..." > "Project"
-3. Select your GitHub repository
-4. Configure project settings:
-   - Framework Preset: Next.js
-   - Root Directory: `./` (default)
+## Environment Variables
 
-### Step 2: Configure Environment Variables
+Ensure all required environment variables are set in your Vercel project settings:
 
-In the project setup page, scroll down to "Environment Variables" and add the following:
+### Required Environment Variables
 
-| Name | Value | Environment |
-|------|-------|-------------|
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Your Clerk publishable key | Production, Preview, Development |
-| `CLERK_SECRET_KEY` | Your Clerk secret key | Production, Preview, Development |
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase URL | Production, Preview, Development |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon key | Production, Preview, Development |
-| `GOOGLE_CLOUD_PROJECT_ID` | Your GCP project ID | Production, Preview, Development |
-| `GOOGLE_CLOUD_CREDENTIALS` | Your GCP service account JSON | Production, Preview, Development |
-| `GOOGLE_TTS_VOICE_NAME` | en-AU-Neural2-B | Production, Preview, Development |
-| `GOOGLE_TTS_LANGUAGE_CODE` | en-AU | Production, Preview, Development |
-| `GOOGLE_TTS_SPEAKING_RATE` | 0.9 | Production, Preview, Development |
-| `GOOGLE_STT_LANGUAGE_CODE` | en-AU | Production, Preview, Development |
-| `GOOGLE_STT_MODEL` | command_and_search | Production, Preview, Development |
-| `GOOGLE_STT_ENABLE_AUTOMATIC_PUNCTUATION` | true | Production, Preview, Development |
-| `GOOGLE_STT_ENABLE_WORD_TIME_OFFSETS` | true | Production, Preview, Development |
-| `IS_PRODUCTION` | true | Production only |
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: Clerk public key
+- `CLERK_SECRET_KEY`: Clerk secret key
+- `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Supabase anonymous key
+- `GOOGLE_CLOUD_PROJECT_ID`: Google Cloud project ID
+- `GOOGLE_CLOUD_CREDENTIALS`: Google Cloud service account credentials
+- `GOOGLE_TTS_VOICE_NAME`: Google TTS voice name (e.g., "en-AU-Standard-A")
+- `GOOGLE_TTS_LANGUAGE_CODE`: Google TTS language code (e.g., "en-AU")
+- `GOOGLE_STT_LANGUAGE_CODE`: Google STT language code (e.g., "en-AU")
+- `GOOGLE_STT_MODEL`: Google STT model (e.g., "latest_long")
 
-### Step 3: Deploy
+## Manual Deployment
 
-1. Click "Deploy"
-2. Wait for the build to complete
-3. Once deployed, Vercel will provide a URL for your application
+If you prefer to deploy manually or the GitHub Actions workflow is not working:
 
-## Method 2: Vercel CLI
+1. Install the Vercel CLI:
+   ```bash
+   npm install -g vercel
+   ```
 
-### Step 1: Install Vercel CLI
+2. Log in to Vercel from the CLI:
+   ```bash
+   vercel login
+   ```
 
-```bash
-npm install -g vercel
-```
+3. Deploy the project:
+   ```bash
+   vercel --prod
+   ```
 
-### Step 2: Login to Vercel
+## Troubleshooting
 
-```bash
-vercel login
-```
-
-### Step 3: Set Up Environment Variables
-
-Create a `.env.production` file (it will be ignored by git) with all your environment variables.
-
-### Step 4: Deploy
-
-From your project root:
-
-```bash
-vercel --prod
-```
-
-Or use our deployment scripts:
-
-- For Unix/Linux/macOS: `./deploy-to-vercel.sh`
-- For Windows: `.\deploy-to-vercel.ps1`
-
-## Method 3: GitHub Actions (Already Set Up)
-
-Our GitHub Actions workflow automatically deploys to Vercel when code is pushed to the main branch.
-
-To use this method:
-
-1. Add your Vercel API token as a GitHub repository secret named `VERCEL_TOKEN`
-2. Ensure environment variables are configured in Vercel
+- **Deployment fails with authentication errors**: Check that your `VERCEL_TOKEN` is correctly set up in GitHub Secrets.
+- **Build errors**: Check the logs in Vercel for detailed error messages.
+- **Environment variable issues**: Ensure all required environment variables are set in your Vercel project.
 
 ## Verifying Deployment
 
@@ -139,26 +117,6 @@ The `GOOGLE_CLOUD_CREDENTIALS` variable contains a JSON string with sensitive in
    ```
 
 3. For security, consider using separate service accounts for different environments.
-
-## Troubleshooting
-
-### Build Errors
-
-- Check build logs in the Vercel dashboard
-- Verify all dependencies are listed in package.json
-- Make sure Next.js configuration is correct
-
-### Runtime Errors
-
-- Check server logs in the Vercel dashboard
-- Verify environment variables are correctly set
-- Test locally with the same configuration
-
-### API Connection Issues
-
-- Verify credential format and permissions
-- Check if API services are enabled in Google Cloud
-- Ensure all required environment variables are set
 
 ## Regular Maintenance
 

@@ -1,6 +1,14 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "outputDirectory": ".next",
+  "public": false,
+  "github": {
+    "enabled": true,
+    "silent": true
+  },
+  "ignoreCommand": "bash -c 'echo \"Skipping checks for already verified build\"'",
   "installCommand": "npm ci",
   "framework": "nextjs",
   "regions": ["syd1"],
