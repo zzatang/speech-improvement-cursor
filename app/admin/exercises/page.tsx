@@ -114,7 +114,7 @@ export default function ExercisesAdminPage() {
   const exercises = exercisesResponse?.data || [];
 
   // Memoize the processed exercises array
-  const memoizedExercises = React.useMemo(() => exercises, [exercisesResponse]);
+  const memoizedExercises = React.useMemo(() => exercises, [exercisesResponse?.data]);
 
   // Form state
   const [isEditing, setIsEditing] = useState(false);

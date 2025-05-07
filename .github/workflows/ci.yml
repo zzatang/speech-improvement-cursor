@@ -9,6 +9,18 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      # CI Environment Variables (dummy values for build)
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dummy-key-for-ci-build
+      CLERK_SECRET_KEY: sk_test_dummy-key-for-ci-build
+      NEXT_PUBLIC_SUPABASE_URL: https://dummy-project.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-ci-build
+      GOOGLE_CLOUD_PROJECT_ID: dummy-project-id
+      GOOGLE_CLOUD_CREDENTIALS: '{"type":"service_account","dummy":"true"}'
+      GOOGLE_TTS_VOICE_NAME: en-AU-Standard-A
+      GOOGLE_TTS_LANGUAGE_CODE: en-AU
+      GOOGLE_STT_LANGUAGE_CODE: en-AU
+      GOOGLE_STT_MODEL: latest_long
 
     steps:
       - uses: actions/checkout@v3
