@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
+// Prevent static generation - this API needs to be dynamic
+export const dynamic = 'force-dynamic';
+
 // This is a special API endpoint that uses the Cursor MCP Supabase query tool
 // to retrieve all user progress records directly without RLS limitations
 export async function GET(request: Request) {

@@ -2,6 +2,9 @@ import { supabase } from '@/lib/supabase/client';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
+// Prevent static generation - this API needs to be dynamic
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

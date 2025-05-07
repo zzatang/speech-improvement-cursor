@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs/server';
 
+// Prevent static generation - this API needs to be dynamic
+export const dynamic = 'force-dynamic';
+
 // Create a Supabase client with the service role key which bypasses RLS
 const createServiceRoleClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

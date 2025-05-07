@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
+// Prevent static generation - this API needs to be dynamic
+export const dynamic = 'force-dynamic';
+
 // This endpoint provides direct access to the user progress data
 // It uses the MCP Supabase query to bypass RLS policies
 export async function GET(request: Request) {

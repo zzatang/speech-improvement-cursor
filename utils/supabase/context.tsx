@@ -4,10 +4,17 @@ import { useSession } from "@clerk/nextjs";
 import { SupabaseClient, createClient } from "@supabase/supabase-js";
 import { createContext, useContext, useMemo, ReactNode, useEffect, useState } from "react";
 
+// Check if we're in a CI environment
+const isCI = process.env.CI === 'true' || process.env.IS_CI_BUILD === 'true';
+
 const SupabaseContext = createContext<SupabaseClient | undefined>(undefined);
 
 export function SupabaseProvider({ children }: { children: ReactNode }) {
-    const { session, isLoaded: isClerkLoaded } = useSession();
+    // In CI mode, skip the real Clerk session
+    const { session: clerkSession, isLoaded: isClerkLoaded } = isCI 
+        ? { session: null, isLoaded: true } // Mock session data in CI
+        : useSession();
+    
     const [isSupabaseReady, setIsSupabaseReady] = useState(false);
 
     // Initialize a client even without a session
@@ -22,8 +29,8 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
             {
                 global: {
                     fetch: async (url, options = {}) => {
-                        // Only try to get token if session exists
-                        const clerkToken = session ? await session.getToken({
+                        // Only try to get token if session exists and not in CI
+                        const clerkToken = !isCI && clerkSession ? await clerkSession.getToken({
                             template: 'supabase',
                         }) : null;
 
@@ -40,13 +47,16 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
                 },
             },
         );
-    }, [session]);
+    }, [clerkSession]);
 
     // Set up a debug effect to monitor the session state
     useEffect(() => {
-        if (isClerkLoaded) {
-            if (session) {
-                session.getToken({ template: 'supabase' }).then(token => {
+        if (isCI) {
+            // In CI mode, we're always ready
+            setIsSupabaseReady(true);
+        } else if (isClerkLoaded) {
+            if (clerkSession) {
+                clerkSession.getToken({ template: 'supabase' }).then(token => {
                     setIsSupabaseReady(true);
                 }).catch(err => {
                     setIsSupabaseReady(true); // Still ready, just without auth
@@ -55,7 +65,7 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
                 setIsSupabaseReady(true); // Ready with anonymous access
             }
         }
-    }, [session, isClerkLoaded]);
+    }, [clerkSession, isClerkLoaded]);
 
     return (
         <SupabaseContext.Provider value={supabase}>
