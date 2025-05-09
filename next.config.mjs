@@ -14,10 +14,10 @@ const nextConfig = {
     // Keep image optimization in server mode
     ...(process.env.CI === 'true' ? { unoptimized: true } : {})
   },
-  // Configure static page generation 
-  staticPageGenerationTimeout: 120,
-  // Improve how client-only routes are handled
+  // We're not using static export in CI environment
   output: process.env.CI === 'true' ? undefined : 'export',
+  // Increase timeout for static generation
+  staticPageGenerationTimeout: 180
 };
 
 export default nextConfig;
