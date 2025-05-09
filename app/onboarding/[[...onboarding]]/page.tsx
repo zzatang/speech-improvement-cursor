@@ -4,14 +4,6 @@ import { SignUp } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 
-// Add generateStaticParams to make this route compatible with static export
-export function generateStaticParams() {
-  return [
-    { onboarding: [] },
-    { onboarding: ['sign-up'] }
-  ];
-}
-
 export default function OnboardingPage() {
   return (
     <div style={{
