@@ -627,7 +627,7 @@ export default function ReadingPracticePage() {
   // Reset the exercise when changing texts
   useEffect(() => {
     resetExercise();
-  }, [currentTextIndex]);
+  }, [currentTextIndex, resetExercise]);
 
   // ... rest of component ...
   

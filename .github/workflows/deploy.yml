@@ -12,6 +12,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    env:
+      # Set mock environment variables for build process
+      GOOGLE_CLOUD_CREDENTIALS: '{"type":"service_account","project_id":"mock-project-id","private_key_id":"mock","private_key":"mock","client_email":"mock@example.com"}'
+      GOOGLE_CLOUD_PROJECT_ID: 'mock-project-id'
+      GOOGLE_TTS_VOICE_NAME: 'en-AU-Standard-A'
+      GOOGLE_TTS_LANGUAGE_CODE: 'en-AU'
+      GOOGLE_STT_LANGUAGE_CODE: 'en-AU'
+      GOOGLE_STT_MODEL: 'latest_long'
     
     steps:
       - name: Check for Vercel token

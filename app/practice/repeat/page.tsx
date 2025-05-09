@@ -799,7 +799,7 @@ export default function RepeatAfterMePage() {
           });
       }
     }
-  }, [audioRef.current?.src]);
+  }, [audioRef.current?.src, isRecording, recordingComplete]);
   
   // Toggle mute state
   const toggleMute = () => {

@@ -9,12 +9,12 @@ const nextConfig = {
     // Set CI flag for environment variable checks
     IS_CI_BUILD: process.env.CI === 'true' ? 'true' : '',
   },
-  // In CI mode, we need to disable some checks for dynamic routes
-  ...(process.env.CI === 'true' ? {
-    output: 'export',
-    // Disable image optimization in static export mode
-    images: { unoptimized: true },
-  } : {}),
+  // In CI mode, we still want to use the default server mode
+  // instead of static export, to support dynamic routes
+  images: {
+    // Keep image optimization in server mode
+    ...(process.env.CI === 'true' ? { unoptimized: true } : {})
+  },
 };
 
 export default nextConfig;
