@@ -59,7 +59,14 @@ jobs:
     runs-on: ubuntu-latest
     
     env:
+      # Set CI flag
+      CI: 'true'
+      IS_CI_BUILD: 'true'
       # Mock environment variables for CI build
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_live_Y2xlcmsuYXBwLmV4YW1wbGUuY29tJA' # Mock value
+      CLERK_SECRET_KEY: 'sk_live_Y2xlcmsuYXBwLmV4YW1wbGUuY29tJA' # Mock value
+      NEXT_PUBLIC_SUPABASE_URL: 'https://mock.supabase.co' # Mock value
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'mock.anon.key' # Mock value
       GOOGLE_CLOUD_CREDENTIALS: '{"type":"service_account","project_id":"mock-project-id","private_key_id":"mock","private_key":"mock","client_email":"mock@example.com"}'
       GOOGLE_CLOUD_PROJECT_ID: 'mock-project-id'
       GOOGLE_TTS_VOICE_NAME: 'en-AU-Standard-A'

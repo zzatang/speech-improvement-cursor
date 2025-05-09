@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
@@ -251,8 +251,26 @@ export default function ReadingPracticePage() {
     fetchExercises();
   }, []);
   
+  // Memoized stopRecording function
+  const stopRecording = useCallback(() => {
+    setIsRecording(false);
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        // Error stopping recorder
+        console.error("Error stopping recorder:", e);
+      }
+    } else {
+      // Condition not met to call stop()
+      console.log("MediaRecorder not recording or not initialized.");
+    }
+  }, [mediaRecorderRef, setIsRecording]); // Dependencies for stopRecording
+
   // Functions cleaned of visual pacing logic
-  const resetExercise = () => {
+  const resetExercise = useCallback(() => {
     // Reset audio state
     if (audioRef.current) {
         audioRef.current.pause();
@@ -266,7 +284,7 @@ export default function ReadingPracticePage() {
     if (isRecording) {
       stopRecording(); // Make sure recording stops if exercise resets
     }
-  };
+  }, [isRecording, stopRecording, audioRef, setFeedback, setIsPlayingAudio, setIsLoadingAudio]); // Updated dependencies for resetExercise
   
   const goToNextText = () => {
     setCurrentTextIndex(prev => (prev + 1) % filteredTexts.length);
@@ -325,24 +343,6 @@ export default function ReadingPracticePage() {
       mediaRecorderRef.current.start();
     } catch (error) {
       // Error in startRecording
-    }
-  };
-  
-  const stopRecording = () => {
-    setIsRecording(false);
-    
-    // Check if mediaRecorder exists and is recording before calling stop
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      try {
-        mediaRecorderRef.current.stop();
-        
-        // Stop all tracks in the stream
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      } catch (e) {
-        // Error stopping recorder
-      }
-    } else {
-      // Condition not met to call stop()
     }
   };
   

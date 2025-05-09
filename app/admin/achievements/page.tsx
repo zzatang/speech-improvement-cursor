@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,6 +8,7 @@ import { Plus, Edit, Trash2, Image as ImageIcon } from "lucide-react";
 import { useUser } from '@clerk/nextjs';
 import { useQuery } from '@tanstack/react-query';
 import { getUserProfile } from '@/lib/supabase/services/user-service';
+import Image from "next/image";
 // Placeholder for the real service import
 // import { getAllAchievements } from "@/lib/supabase/services/achievement-service";
 
@@ -124,7 +127,7 @@ export default function AdminAchievementsPage() {
                   <tr key={ach.id} className={idx % 2 === 0 ? "bg-white" : "bg-blue-50/50 hover:bg-blue-100/60 transition"}>
                     <td className="px-6 py-4">
                       {ach.icon_url ? (
-                        <img src={ach.icon_url} alt={ach.name} className="w-10 h-10 rounded-full object-cover border border-blue-200 shadow-sm" />
+                        <Image src={ach.icon_url} alt={ach.name} width={40} height={40} className="w-10 h-10 rounded-full object-cover border border-blue-200 shadow-sm" />
                       ) : (
                         <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 border border-blue-200">
                           <ImageIcon className="w-6 h-6 text-blue-300" />
