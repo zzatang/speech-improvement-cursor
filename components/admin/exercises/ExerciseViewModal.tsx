@@ -20,6 +20,13 @@ export default function ExerciseViewModal({ open, onClose, exercise }: ExerciseV
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
+  // Map difficulty level to label
+  const getDifficultyLabel = (level: number) => {
+    if (level === 5) return 'Hard';
+    if ([3, 4].includes(level)) return 'Medium';
+    return 'Easy';
+  };
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent
@@ -52,7 +59,7 @@ export default function ExerciseViewModal({ open, onClose, exercise }: ExerciseV
           
           <div>
             <h3 className="text-sm font-semibold text-gray-500">Difficulty Level</h3>
-            <p className="text-base text-amber-700 font-medium">{exercise.difficulty_level}</p>
+            <p className="text-base text-amber-700 font-medium">{getDifficultyLabel(exercise.difficulty_level)} (Level {exercise.difficulty_level})</p>
           </div>
           
           <div>

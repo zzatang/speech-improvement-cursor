@@ -165,10 +165,9 @@ export default function ReadingPracticePage() {
             const content = exercise.content as any;
             
             // Map difficulty level to string
-            let difficultyText = "Medium";
-            if (exercise.difficulty_level === 1) difficultyText = "Easy";
-            else if (exercise.difficulty_level === 2) difficultyText = "Medium";
-            else if (exercise.difficulty_level === 3) difficultyText = "Hard";
+            let difficultyText = "Easy";
+            if ([3, 4].includes(exercise.difficulty_level)) difficultyText = "Medium";
+            else if (exercise.difficulty_level === 5) difficultyText = "Hard";
             
             return {
               id: exercise.id,

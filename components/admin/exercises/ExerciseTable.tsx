@@ -13,6 +13,13 @@ export default function ExerciseTable({ exercises = [], onView, onEdit, onDelete
   // Ensure exercises is always an array
   const exerciseArray = Array.isArray(exercises) ? exercises : [];
   
+  // Map difficulty level to label
+  const getDifficultyLabel = (level: number) => {
+    if (level === 5) return 'Hard';
+    if ([3, 4].includes(level)) return 'Medium';
+    return 'Easy';
+  };
+
   return (
     <div className="overflow-x-auto rounded-xl shadow-lg border border-gray-200 bg-white">
       <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -30,7 +37,7 @@ export default function ExerciseTable({ exercises = [], onView, onEdit, onDelete
             <tr key={exercise.id} className={idx % 2 === 0 ? "bg-white" : "bg-blue-50/50 hover:bg-blue-100/60 transition"}>
               <td className="px-6 py-4 font-semibold text-blue-900">{exercise.title}</td>
               <td className="px-6 py-4 text-gray-700 capitalize">{exercise.exercise_type}</td>
-              <td className="px-6 py-4 text-amber-700 font-medium">{exercise.difficulty_level}</td>
+              <td className="px-6 py-4 text-amber-700 font-medium">{getDifficultyLabel(exercise.difficulty_level)} (Level {exercise.difficulty_level})</td>
               <td className="px-6 py-4 text-gray-500">{exercise.age_group || '-'}</td>
               <td className="px-6 py-4 text-right space-x-2">
                 <Button size="icon" variant="ghost" aria-label="View Exercise" className="hover:bg-blue-100" onClick={() => onView?.(exercise)} title="View Exercise">
