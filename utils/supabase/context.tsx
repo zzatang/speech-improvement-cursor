@@ -20,17 +20,20 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
     // Initialize a client even without a session
     const supabase = useMemo(() => {
         // Check for environment variables
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://missing-url.supabase.co';
-        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'missing-key';
-        
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseKey) {
+            console.warn('Using mock Supabase client because API keys are missing');
+            return undefined;
+        }
         return createClient(
             supabaseUrl,
             supabaseKey,
             {
                 global: {
                     fetch: async (url, options = {}) => {
-                        // Only try to get token if session exists and not in CI
-                        const clerkToken = !isCI && clerkSession ? await clerkSession.getToken({
+                        // Only try to get token if session exists
+                        const clerkToken = clerkSession ? await clerkSession.getToken({
                             template: 'supabase',
                         }) : null;
 

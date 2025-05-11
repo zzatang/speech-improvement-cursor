@@ -1,14 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Check if running in CI environment
-const isCI = process.env.CI === 'true' || process.env.IS_CI_BUILD === 'true';
-
 // Check for required environment variables
-const supabaseUrl = isCI ? 'https://example.supabase.co' : process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = isCI ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.ZopqoUt20w92h6kX9WZcJ_zZznUVPgN9HCUmIrH5l0E' : process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Create a mock Supabase client that returns empty data for development/build environments
 const createMockSupabaseClient = () => {
+  console.warn('Using mock Supabase client because API keys are missing');
   // Silent mock implementation for development
   return {
     from: () => ({
@@ -63,7 +61,7 @@ const createMockSupabaseClient = () => {
 // Create a singleton Supabase client
 export const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
-  : createMockSupabaseClient() as any;
+  : createMockSupabaseClient();
 
 // Helper function to safely handle Supabase calls with consistent error formatting
 export async function safeSupabaseCall<T>(fn: () => Promise<{ data: T | null; error: any }>): Promise<{ data: T | null; error: any }> {
