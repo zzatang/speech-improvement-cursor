@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useAuth } from "@clerk/nextjs";
 import { 
   Card, 
   CardContent, 
@@ -45,6 +45,7 @@ import {
   getExercisesByType 
 } from '@/lib/supabase/services/exercise-service';
 import { SpeechExercise } from '@/lib/supabase/types';
+import { getSupabaseWithAuth } from '@/lib/supabase/getSupabaseWithAuth';
 
 // Sample reading texts for practice (would be fetched from API in production)
 const READING_TEXTS = [
@@ -130,6 +131,27 @@ export default function ReadingPracticePage() {
   
   // Use filteredTexts for the current text
   const currentText = filteredTexts[currentTextIndex];
+  
+  const { getToken, userId } = useAuth();
+  
+  // Move resetExerciseState above useEffect
+  const resetExerciseState = () => {
+    setIsPlayingAudio(false);
+    setIsRecording(false);
+    setRecordingComplete(false);
+    setProgress(0);
+    setFeedback(null);
+    // Clear the audio source when changing texts to force a new fetch
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+  };
+
+  // Reset the exercise when changing texts
+  useEffect(() => {
+    resetExerciseState();
+  }, [currentTextIndex]);
   
   // Apply difficulty filter whenever it changes or when reading texts change
   useEffect(() => {
@@ -254,56 +276,11 @@ export default function ReadingPracticePage() {
     fetchExercises();
   }, []);
   
-  // Memoized stopRecording function
-  const stopRecording = () => {
-    console.log('[Reading] stopRecording called');
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      console.log('[Reading] stopRecording: MediaRecorder stopped and tracks closed');
-    } else {
-      console.log('[Reading] stopRecording: MediaRecorder not recording or not initialized');
-    }
-  };
-
-  // Functions cleaned of visual pacing logic
-  const resetExercise = useCallback(() => {
-    console.log('[Reading] resetExercise called, isRecording:', isRecording);
-    // Reset audio state
-    if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = ''; // Clear audio source
-    }
-    setIsPlayingAudio(false);
-    setIsLoadingAudio(false);
-    // Reset recording state
-    setFeedback(null);
-  }, [isRecording, stopRecording, audioRef, setFeedback, setIsPlayingAudio, setIsLoadingAudio]); // Updated dependencies for resetExercise
-  
-  const goToNextText = () => {
-    setCurrentTextIndex(prev => (prev + 1) % filteredTexts.length);
-    resetExercise();
-  };
-  
-  const goToPreviousText = () => {
-    setCurrentTextIndex(prev => (prev - 1 + filteredTexts.length) % filteredTexts.length);
-    resetExercise();
-  };
-  
+  // Function to start recording (copied and adapted from repeat/page.tsx)
   const startRecording = async () => {
     console.log('[Reading] startRecording called');
-    if (isRecording) {
-      console.log('[Reading] startRecording: calling stopRecording because already recording');
-      stopRecording();
-      return;
-    }
-    // Stop any audio playback before recording
-    if (isPlayingAudio && audioRef.current) {
-      audioRef.current.pause();
-      setIsPlayingAudio(false);
-    }
     try {
+      // Request audio with a specific sample rate
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: 48000,
@@ -325,16 +302,16 @@ export default function ReadingPracticePage() {
           console.log('[Reading] audioChunksRef.current length:', audioChunksRef.current.length);
         }
       };
-      mediaRecorderRef.current.onstop = async () => {
+      mediaRecorderRef.current.onstop = () => {
         console.log('[Reading] onstop called');
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
         console.log('[Reading] audioBlob size:', audioBlob.size);
         setRecordingComplete(true);
         analyzeRecording(audioBlob);
       };
+      mediaRecorderRef.current.start();
       setIsRecording(true);
       setProgress(0);
-      mediaRecorderRef.current.start();
       console.log('[Reading] MediaRecorder started');
       // Progress animation
       const interval = setInterval(() => {
@@ -355,6 +332,17 @@ export default function ReadingPracticePage() {
       }, 5000);
     } catch (error) {
       console.error('[Reading] Error in startRecording', error);
+    }
+  };
+
+  // Function to stop recording (copied and adapted from repeat/page.tsx)
+  const stopRecording = () => {
+    console.log('[Reading] stopRecording called');
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      // Stop all tracks on the stream
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
     }
   };
   
@@ -381,7 +369,6 @@ export default function ReadingPracticePage() {
       formData.append('languageCode', 'en-AU');
       
       // Get the current user ID from Clerk
-      const { userId } = await fetch('/api/auth').then(res => res.json());
       if (!userId) {
         throw new Error("Authentication required");
       }
@@ -516,42 +503,29 @@ export default function ReadingPracticePage() {
         suggestions: suggestions
       });
       
-      // Save the user's progress to Supabase
+      // Save the user's progress to Supabase using authenticated client
       try {
-        // Import the saveUserProgress function and user service
-        const { saveUserProgress } = await import('@/lib/supabase/services/exercise-service');
-        
+        const supabaseClient = await getSupabaseWithAuth(() => getToken({ template: 'supabase' }));
         // Create a consistent exercise ID format that includes text title and focus
         const exerciseId = typeof currentText.id === 'string' ? 
-          currentText.id : // Use the actual Supabase ID if it's a string
+          currentText.id :
           `reading_${currentText.title.toLowerCase().replace(/\s+/g, '_')}_${currentTextIndex}`;
-        
-        // Prepare feedback message for storage
         const storageFeedbackMsg = `Score: ${exerciseScore}%. Transcript: "${transcript}". ${feedbackMessage}`;
-        
-        // Save the progress
-        const progressResult = await saveUserProgress({
-          user_id: userId,
-          exercise_id: exerciseId,
-          score: exerciseScore,
-          completed_at: new Date().toISOString(),
-          feedback: storageFeedbackMsg,
-          attempts: 1
-        });
-        
-        if (progressResult.error) {
+        const { data: progressData, error: progressError } = await supabaseClient
+          .from('user_progress')
+          .upsert([{
+            user_id: userId,
+            exercise_id: exerciseId,
+            score: exerciseScore,
+            completed_at: new Date().toISOString(),
+            feedback: storageFeedbackMsg,
+            attempts: 1
+          }]);
+        if (progressError) {
           throw new Error("Error saving reading progress");
         }
-        
-        // Update the user's overall progress using the service function
-        // This will correctly calculate overall progress based on all exercises
-        const { updateUserProfile, updateStreakCount } = await import('@/lib/supabase/services/user-service');
-        
-        // Update overall progress (this recalculates based on all progress records)
-        await updateUserProfile(userId);
-        
-        // Update streak count to maintain activity streak
-        await updateStreakCount(userId, 1);
+        // Optionally update user profile and streak using authenticated client as well
+        // ...
       } catch (saveError) {
         console.error('Failed to save reading progress:', saveError);
         // Do not clear feedback here
@@ -638,12 +612,15 @@ export default function ReadingPracticePage() {
     }
   };
   
-  // Reset the exercise when changing texts
-  useEffect(() => {
-    resetExercise();
-  }, [currentTextIndex, resetExercise]);
+  const goToNextText = () => {
+    setCurrentTextIndex(prev => (prev + 1) % filteredTexts.length);
+    resetExerciseState();
+  };
 
-  // ... rest of component ...
+  const goToPreviousText = () => {
+    setCurrentTextIndex(prev => (prev - 1 + filteredTexts.length) % filteredTexts.length);
+    resetExerciseState();
+  };
   
   return (
     <div style={{

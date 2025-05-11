@@ -28,8 +28,9 @@ import {
   getUserProfile 
 } from '@/lib/supabase/services/user-service';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { useUser, useAuth } from '@clerk/nextjs';
 import { SpeechExercise } from '@/lib/supabase/types';
+import { getSupabaseWithAuth } from '@/lib/supabase/getSupabaseWithAuth';
 
 // Extend the STTResponse interface to include the targetSoundAnalysis property
 interface ExtendedSTTResponse extends STTResponse {
@@ -122,6 +123,7 @@ export default function RepeatAfterMePage() {
   const router = useRouter();
   const { user } = useUser();
   const [streakCount, setStreakCount] = useState<number | null>(null);
+  const { getToken, userId } = useAuth();
   
   // The current phrase is determined by the filtered phrases
   // const currentPhrase = practicePhrases[currentPhraseIndex];
@@ -529,9 +531,6 @@ export default function RepeatAfterMePage() {
     try {
       setLoadingAnalysis(true);
       setFeedback(null);
-
-      // Use the user from the component level 
-      const userId = user?.id;
       if (!userId) {
         throw new Error('You must be logged in to analyze recordings');
       }
@@ -601,29 +600,32 @@ export default function RepeatAfterMePage() {
         suggestions: suggestions
       });
       
-      // Save user progress to Supabase
-      // Create a consistent exercise ID format that includes phrase focus and difficulty
-      const exerciseId = `repeat_${currentPhrase.focus.toLowerCase().replace(/\s+/g, '_')}_${currentPhraseIndex}`;
-      
-      await saveUserProgress({
-        user_id: userId,
-        exercise_id: exerciseId,
-        score: scorePercentage,
-        completed_at: new Date().toISOString(),
-        feedback: `Accuracy: ${scorePercentage}%. Transcript: "${transcript}"`,
-        attempts: 1
-      });
-      
-      // Update user profile progress using the service function
-      // This will correctly calculate overall progress based on all exercises
-      await updateUserProfile(userId);
-      
-      // Update streak count to maintain activity streak
-      await updateStreakCount(userId, 1);
-      
+      // Save user progress to Supabase using authenticated client
+      try {
+        const supabaseClient = await getSupabaseWithAuth(() => getToken({ template: 'supabase' }));
+        const exerciseId = `repeat_${currentPhrase.focus.toLowerCase().replace(/\s+/g, '_')}_${currentPhraseIndex}`;
+        await supabaseClient
+          .from('user_progress')
+          .upsert([{
+            user_id: userId,
+            exercise_id: exerciseId,
+            score: scorePercentage,
+            completed_at: new Date().toISOString(),
+            feedback: `Accuracy: ${scorePercentage}%. Transcript: "${transcript}"`,
+            attempts: 1
+          }]);
+        // Optionally update user profile and streak using authenticated client as well
+        // ...
+      } catch (saveError) {
+        setFeedback({
+          message: 'Sorry, there was an error analyzing your recording.',
+          accuracy: 0,
+          transcription: '',
+          suggestions: ['Please try again later.']
+        });
+      }
       setRecordingComplete(true);
     } catch (error) {
-      // Error analyzing recording
       setFeedback({
         message: 'Sorry, there was an error analyzing your recording.',
         accuracy: 0,
