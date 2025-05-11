@@ -452,6 +452,7 @@ export default function RepeatAfterMePage() {
   
   // Function to start recording
   const startRecording = async () => {
+    console.log('[Repeat] startRecording called');
     try {
       // Request audio with a specific sample rate
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -462,33 +463,30 @@ export default function RepeatAfterMePage() {
           noiseSuppression: true
         }
       });
-      
-      // Create MediaRecorder with specific MIME type and bitrate
+      console.log('[Repeat] Microphone stream acquired', stream);
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
         audioBitsPerSecond: 128000
       });
-      
       audioChunksRef.current = [];
-      
       mediaRecorderRef.current.ondataavailable = (event) => {
+        console.log('[Repeat] ondataavailable', event);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          console.log('[Repeat] audioChunksRef.current length:', audioChunksRef.current.length);
         }
       };
-      
       mediaRecorderRef.current.onstop = () => {
+        console.log('[Repeat] onstop called');
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        console.log('[Repeat] audioBlob size:', audioBlob.size);
         setAudioBlob(audioBlob);
         setRecordingComplete(true);
-        
-        // Automatically analyze after recording
         analyzeRecording(audioBlob);
       };
-      
-      // Start the recording and set a max recording time
       mediaRecorderRef.current.start();
       setIsRecording(true);
+      console.log('[Repeat] MediaRecorder started');
       
       // Progress animation
       setProgress(0);
@@ -510,7 +508,7 @@ export default function RepeatAfterMePage() {
         }
       }, 5000);
     } catch (error) {
-      // Error starting recording
+      console.error('[Repeat] Error in startRecording', error);
     }
   };
   
@@ -527,6 +525,7 @@ export default function RepeatAfterMePage() {
   
   // Function to analyze the recorded audio
   const analyzeRecording = async (audioBlob: Blob) => {
+    console.log('[Repeat] analyzeRecording called, blob size:', audioBlob.size);
     try {
       setLoadingAnalysis(true);
       setFeedback(null);

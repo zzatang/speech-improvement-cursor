@@ -296,6 +296,7 @@ export default function ReadingPracticePage() {
   };
   
   const startRecording = async () => {
+    console.log('[Reading] startRecording called');
     if (isRecording) {
       stopRecording();
       return;
@@ -315,37 +316,38 @@ export default function ReadingPracticePage() {
           noiseSuppression: true
         }
       });
-      
+      console.log('[Reading] Microphone stream acquired', stream);
       // Create MediaRecorder with specific MIME type and bitrate
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
         audioBitsPerSecond: 128000
       });
-      
       audioChunksRef.current = [];
-      
       mediaRecorderRef.current.ondataavailable = (event) => {
+        console.log('[Reading] ondataavailable', event);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
+          console.log('[Reading] audioChunksRef.current length:', audioChunksRef.current.length);
         }
       };
-      
       mediaRecorderRef.current.onstop = async () => {
+        console.log('[Reading] onstop called');
         // Create Blob with explicit type for Opus
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-        
+        console.log('[Reading] audioBlob size:', audioBlob.size);
         analyzeRecording(audioBlob);
       };
-      
       // Start recording
       setIsRecording(true);
       mediaRecorderRef.current.start();
+      console.log('[Reading] MediaRecorder started');
     } catch (error) {
-      // Error in startRecording
+      console.error('[Reading] Error in startRecording', error);
     }
   };
   
   const analyzeRecording = async (blob: Blob) => {
+    console.log('[Reading] analyzeRecording called, blob size:', blob.size);
     try {
       setFeedback({
         message: "Analyzing your reading...",
