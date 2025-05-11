@@ -7,50 +7,13 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 // Create a mock Supabase client that returns empty data for development/build environments
 const createMockSupabaseClient = () => {
   console.warn('Using mock Supabase client because API keys are missing');
-  // Silent mock implementation for development
+  // Minimal mock: .from().select() returns a Promise<{ data, error }>
   return {
     from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: async () => ({ data: null, error: null }),
-          maybeSingle: async () => ({ data: null, error: null }),
-          order: () => ({ 
-            data: [],  // This should be an array, not null
-            error: null 
-          })
-        }),
-        order: () => ({
-          data: [],  // Make sure this is an array
-          error: null
-        }),
-        limit: () => ({
-          single: async () => ({ data: null, error: null })
-        }),
-        delete: () => ({ error: null }),
-        insert: () => ({
-          select: () => ({
-            single: async () => ({ data: null, error: null })
-          })
-        }),
-        update: () => ({
-          eq: () => ({
-            select: async () => ({ data: null, error: null })
-          })
-        })
-      }),
-      insert: () => ({
-        select: () => ({
-          single: async () => ({ data: null, error: null })
-        })
-      }),
-      delete: () => ({
-        eq: () => ({ error: null })
-      }),
-      update: () => ({
-        eq: () => ({
-          select: async () => ({ data: null, error: null })
-        })
-      })
+      select: () => Promise.resolve({ data: [], error: null }),
+      insert: () => Promise.resolve({ data: null, error: null }),
+      update: () => Promise.resolve({ data: null, error: null }),
+      delete: () => Promise.resolve({ data: null, error: null })
     }),
     auth: {
       getUser: async () => ({ data: { user: null }, error: null })
