@@ -277,13 +277,8 @@ export default function ReadingPracticePage() {
     }
     setIsPlayingAudio(false);
     setIsLoadingAudio(false);
-
     // Reset recording state
     setFeedback(null);
-    if (isRecording) {
-      console.log('[Reading] resetExercise: calling stopRecording');
-      stopRecording(); // Make sure recording stops if exercise resets
-    }
   }, [isRecording, stopRecording, audioRef, setFeedback, setIsPlayingAudio, setIsLoadingAudio]); // Updated dependencies for resetExercise
   
   const goToNextText = () => {
@@ -558,7 +553,8 @@ export default function ReadingPracticePage() {
         // Update streak count to maintain activity streak
         await updateStreakCount(userId, 1);
       } catch (saveError) {
-        throw new Error("Failed to save reading progress");
+        console.error('Failed to save reading progress:', saveError);
+        // Do not clear feedback here
       }
     } catch (error) {
       setFeedback({
