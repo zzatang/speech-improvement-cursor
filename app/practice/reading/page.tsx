@@ -124,6 +124,10 @@ export default function ReadingPracticePage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   
+  // Add state for progress and recordingComplete
+  const [progress, setProgress] = useState(0);
+  const [recordingComplete, setRecordingComplete] = useState(false);
+  
   // Use filteredTexts for the current text
   const currentText = filteredTexts[currentTextIndex];
   
@@ -251,25 +255,21 @@ export default function ReadingPracticePage() {
   }, []);
   
   // Memoized stopRecording function
-  const stopRecording = useCallback(() => {
-    setIsRecording(false);
-    
+  const stopRecording = () => {
+    console.log('[Reading] stopRecording called');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      try {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      } catch (e) {
-        // Error stopping recorder
-        console.error("Error stopping recorder:", e);
-      }
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      console.log('[Reading] stopRecording: MediaRecorder stopped and tracks closed');
     } else {
-      // Condition not met to call stop()
-      console.log("MediaRecorder not recording or not initialized.");
+      console.log('[Reading] stopRecording: MediaRecorder not recording or not initialized');
     }
-  }, [mediaRecorderRef, setIsRecording]); // Dependencies for stopRecording
+  };
 
   // Functions cleaned of visual pacing logic
   const resetExercise = useCallback(() => {
+    console.log('[Reading] resetExercise called, isRecording:', isRecording);
     // Reset audio state
     if (audioRef.current) {
         audioRef.current.pause();
@@ -281,6 +281,7 @@ export default function ReadingPracticePage() {
     // Reset recording state
     setFeedback(null);
     if (isRecording) {
+      console.log('[Reading] resetExercise: calling stopRecording');
       stopRecording(); // Make sure recording stops if exercise resets
     }
   }, [isRecording, stopRecording, audioRef, setFeedback, setIsPlayingAudio, setIsLoadingAudio]); // Updated dependencies for resetExercise
@@ -298,6 +299,7 @@ export default function ReadingPracticePage() {
   const startRecording = async () => {
     console.log('[Reading] startRecording called');
     if (isRecording) {
+      console.log('[Reading] startRecording: calling stopRecording because already recording');
       stopRecording();
       return;
     }
@@ -307,7 +309,6 @@ export default function ReadingPracticePage() {
       setIsPlayingAudio(false);
     }
     try {
-      // Request audio with a specific sample rate
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           sampleRate: 48000,
@@ -317,7 +318,6 @@ export default function ReadingPracticePage() {
         }
       });
       console.log('[Reading] Microphone stream acquired', stream);
-      // Create MediaRecorder with specific MIME type and bitrate
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
         audioBitsPerSecond: 128000
@@ -332,15 +332,32 @@ export default function ReadingPracticePage() {
       };
       mediaRecorderRef.current.onstop = async () => {
         console.log('[Reading] onstop called');
-        // Create Blob with explicit type for Opus
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
         console.log('[Reading] audioBlob size:', audioBlob.size);
+        setRecordingComplete(true);
         analyzeRecording(audioBlob);
       };
-      // Start recording
       setIsRecording(true);
+      setProgress(0);
       mediaRecorderRef.current.start();
       console.log('[Reading] MediaRecorder started');
+      // Progress animation
+      const interval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            stopRecording();
+            return 100;
+          }
+          return prev + 2;
+        });
+      }, 100);
+      // Auto-stop after 5 seconds
+      setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          stopRecording();
+        }
+      }, 5000);
     } catch (error) {
       console.error('[Reading] Error in startRecording', error);
     }
