@@ -7,11 +7,17 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 // Create a mock Supabase client that returns empty data for development/build environments
 const createMockSupabaseClient = () => {
   console.warn('Using mock Supabase client because API keys are missing');
-  // Minimal mock: .from().select()/upsert()/insert()/update()/delete() returns a Promise<{ data, error }>
+  // Mock chainable API for upsert().select().maybeSingle()
+  const chainablePromise = Promise.resolve({ data: null, error: null });
   return {
     from: () => ({
       select: () => Promise.resolve({ data: [], error: null }),
-      upsert: () => Promise.resolve({ data: null, error: null }),
+      upsert: () => ({
+        select: () => ({
+          maybeSingle: () => chainablePromise,
+        }),
+        maybeSingle: () => chainablePromise,
+      }),
       insert: () => Promise.resolve({ data: null, error: null }),
       update: () => Promise.resolve({ data: null, error: null }),
       delete: () => Promise.resolve({ data: null, error: null })
