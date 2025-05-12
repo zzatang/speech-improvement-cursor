@@ -7,21 +7,23 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 // Create a mock Supabase client that returns empty data for development/build environments
 const createMockSupabaseClient = () => {
   console.warn('Using mock Supabase client because API keys are missing');
-  // Mock chainable API for upsert().select().maybeSingle()
-  const chainablePromise = Promise.resolve({ data: null, error: null });
+  // Chainable query builder mock
+  const mockResult = { data: [], error: null };
+  const builder = {
+    select: function () { return this; },
+    upsert: function () { return this; },
+    insert: function () { return this; },
+    update: function () { return this; },
+    delete: function () { return this; },
+    eq: function () { return this; },
+    order: function () { return this; },
+    limit: function () { return this; },
+    maybeSingle: function () { return Promise.resolve({ data: null, error: null }); },
+    single: function () { return Promise.resolve({ data: null, error: null }); },
+    then: function (resolve: (value: any) => any) { return Promise.resolve(mockResult).then(resolve); },
+  };
   return {
-    from: () => ({
-      select: () => Promise.resolve({ data: [], error: null }),
-      upsert: () => ({
-        select: () => ({
-          maybeSingle: () => chainablePromise,
-        }),
-        maybeSingle: () => chainablePromise,
-      }),
-      insert: () => Promise.resolve({ data: null, error: null }),
-      update: () => Promise.resolve({ data: null, error: null }),
-      delete: () => Promise.resolve({ data: null, error: null })
-    }),
+    from: () => builder,
     auth: {
       getUser: async () => ({ data: { user: null }, error: null })
     }
