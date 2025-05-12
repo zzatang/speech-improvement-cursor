@@ -25,7 +25,8 @@ const createMockSupabaseClient = () => {
   return {
     from: () => builder,
     auth: {
-      getUser: async () => ({ data: { user: null }, error: null })
+      getUser: async () => ({ data: { user: null }, error: null }),
+      getSession: async () => ({ data: { session: null }, error: null })
     }
   };
 };
