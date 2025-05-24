@@ -1,14 +1,18 @@
-'use client';
+"use client";
 
+import { useState, useEffect } from 'react';
+import { useAuth } from "@/components/providers/supabase-auth-provider";
+import { Button } from "@/components/ui/button";
 import { BookOpen, Users, Award, ArrowRight, Settings } from 'lucide-react';
 import Link from 'next/link';
-import { useUser } from '@clerk/nextjs';
 import { useQuery } from '@tanstack/react-query';
 import { getUserProfile } from '@/lib/supabase/services/user-service';
 
 export default function AdminDashboard() {
   // Add user and admin role check
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { user, loading } = useAuth();
+  const isLoaded = !loading;
+  const isSignedIn = !!user;
 
   // Fetch user profile from Supabase to get the role
   const {

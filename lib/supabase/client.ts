@@ -1,8 +1,17 @@
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
-// Check for required environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Get environment variables with fallbacks
+const getSupabaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Client-side: use window.location for dynamic URL
+    return process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  }
+  return process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+};
+
+const getSupabaseKey = () => {
+  return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+};
 
 // Create a mock Supabase client that returns empty data for development/build environments
 const createMockSupabaseClient = () => {
@@ -28,14 +37,34 @@ const createMockSupabaseClient = () => {
       getUser: async () => ({ data: { user: null }, error: null }),
       getSession: async () => ({ data: { session: null }, error: null }),
       setSession: async (_session: any) => createMockSupabaseClient(),
+      signInWithPassword: async (_credentials: any) => ({ data: null, error: { message: 'Mock client - no authentication available' } }),
+      signInWithOAuth: async (_options: any) => ({ data: null, error: { message: 'Mock client - no authentication available' } }),
+      signUp: async (_credentials: any) => ({ data: null, error: { message: 'Mock client - no authentication available' } }),
+      signOut: async () => ({ error: null }),
+      onAuthStateChange: (_callback: any) => ({ data: { subscription: { unsubscribe: () => {} } } }),
     }
   };
 };
 
+// Create the Supabase client
+const createSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  console.log('Creating Supabase client with:', {
+    url: supabaseUrl ? 'Present' : 'Missing',
+    key: supabaseKey ? 'Present' : 'Missing'
+  });
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return createMockSupabaseClient();
+  }
+  
+  return createBrowserClient(supabaseUrl, supabaseKey);
+};
+
 // Create a singleton Supabase client
-export const supabase = supabaseUrl && supabaseKey
-  ? createClient(supabaseUrl, supabaseKey)
-  : createMockSupabaseClient();
+export const supabase = createSupabaseClient();
 
 // Helper function to safely handle Supabase calls with consistent error formatting
 export async function safeSupabaseCall<T>(fn: () => Promise<{ data: T | null; error: any }>): Promise<{ data: T | null; error: any }> {

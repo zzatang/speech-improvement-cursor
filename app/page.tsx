@@ -68,7 +68,7 @@ export default function Home() {
             }}>Speech Buddy</span>
           </div>
           <nav style={{ display: 'flex', gap: '1rem' }}>
-            <a href="/sign-in" style={{ 
+            <a href="/auth/login" style={{ 
               color: '#4F46E5', 
               textDecoration: 'none',
               fontWeight: '600',
@@ -76,7 +76,7 @@ export default function Home() {
               borderRadius: '0.5rem',
               transition: 'all 0.2s ease'
             }}>Sign In</a>
-            <a href="/onboarding" style={{ 
+            <a href="/auth/signup" style={{ 
               background: 'linear-gradient(45deg, #4F46E5, #2563EB)', 
               color: 'white', 
               padding: '0.5rem 1.25rem', 
@@ -136,7 +136,7 @@ export default function Home() {
             maxWidth: '400px',
             margin: '0 auto'
           }}>
-            <a href="/onboarding" style={{ 
+            <a href="/auth/signup" style={{ 
               background: 'linear-gradient(45deg, #4F46E5, #2563EB)', 
               color: 'white', 
               padding: '1rem 2rem', 
@@ -148,7 +148,7 @@ export default function Home() {
               animation: 'pulse 2s infinite ease-in-out',
               transform: 'translateZ(0)' // for better animation performance
             }}>Get Started</a>
-            <a href="/sign-in" style={{ 
+            <a href="/auth/login" style={{ 
               border: '2px solid #4F46E5', 
               color: '#4F46E5', 
               padding: '0.75rem 1.5rem', 
@@ -363,7 +363,7 @@ export default function Home() {
           }}>
             Join thousands of families who are helping their children improve their speech in a fun, engaging way.
           </p>
-          <a href="/onboarding" style={{ 
+          <a href="/auth/signup" style={{ 
             backgroundColor: 'white', 
             color: '#3B82F6', 
             padding: '1rem 2.5rem', 

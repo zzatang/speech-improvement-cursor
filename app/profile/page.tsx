@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Trophy, Star, Calendar, BarChart2, User, Award, RefreshCw } from "lucide-react";
-import { useUser, UserButton } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/supabase-auth-provider";
 import { 
   getUserProfile, 
   getUserAchievements,
   updateUserProfile,
-  upsertUserProfile
+  upsertUserProfile,
+  getUserProgress
 } from "@/lib/supabase/services/user-service";
 import { supabase } from "@/lib/supabase/client";
 import { Progress } from "@/components/ui/progress";
@@ -23,7 +24,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [exerciseHistory, setExerciseHistory] = useState<any[]>([]);
   const [achievements, setAchievements] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("history");
   const [username, setUsername] = useState("Speech User");
@@ -36,92 +37,118 @@ export default function ProfilePage() {
   const [isDemoMode] = useState(false);
   const [demoUserId] = useState("demo-user");
   
-  const { user, isLoaded } = useUser();
-
-  // Add debug state
-  const [debugInfo, setDebugInfo] = useState<any>({});
-  const [showDebug, setShowDebug] = useState(false);
+  const { user, loading: authLoading } = useAuth();
 
   // Add a function to fetch user progress from our API endpoint
   const fetchUserProgressFromAPI = async (userId: string) => {
     try {
-      // Try fetching via MCP endpoints first, which has better error handling
-      let mcpData = { records: [], method: '' };
+      console.log('🚀 Fetching user progress for:', userId);
+      
+      // Use the MCP API endpoint that bypasses RLS
       try {
+        console.log('📞 Calling MCP API endpoint...');
         
-        // Try MCP direct-data API endpoint first
-        const mcpResponse = await fetch(`/api/direct-data/user-progress-mcp?userId=${userId}`);
-        
+        const mcpResponse = await fetch('/api/mcp/user-progress', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId })
+        });
+
+        console.log('📞 MCP API response status:', mcpResponse.status);
+        console.log('📞 MCP API response ok:', mcpResponse.ok);
+
         if (mcpResponse.ok) {
-          mcpData = await mcpResponse.json();
+          const mcpData = await mcpResponse.json();
+          console.log('✅ MCP API response data:', mcpData);
+          console.log('✅ MCP API success:', mcpData.success);
+          console.log('✅ MCP API records:', mcpData.records);
+          console.log('✅ MCP API records length:', mcpData.records?.length);
           
-          if (mcpData.records && mcpData.records.length > 0) {
-            return mcpData;
+          if (mcpData.success && mcpData.records) {
+            console.log('🎉 Returning MCP data with', mcpData.records.length, 'records');
+            return {
+              success: true,
+              records: mcpData.records,
+              count: mcpData.count,
+              method: mcpData.method
+            };
+          } else {
+            console.log('⚠️ MCP API returned success=false or no records');
           }
         } else {
-          // MCP Direct API failed with status
+          console.log('❌ MCP API failed with status:', mcpResponse.status);
+          const errorText = await mcpResponse.text();
+          console.log('❌ MCP API error response:', errorText);
         }
       } catch (mcpError) {
-        // Error using MCP direct data API
+        console.log('❌ MCP API error:', mcpError);
       }
+
+      // Fallback: return empty result
+      console.log('ℹ️ No data found via any method, returning empty');
+      return {
+        success: true,
+        records: [],
+        count: 0,
+        method: 'no_data'
+      };
       
-      // Fall back to direct-data API
-      let directData = { records: [], method: '' };
-      try {
-        
-        // Try direct-data API endpoint
-        const directResponse = await fetch(`/api/direct-data/user-progress?userId=${userId}`);
-        
-        if (directResponse.ok) {
-          directData = await directResponse.json();
-          
-          if (directData.records && directData.records.length > 0) {
-            return directData;
-          }
-        } else {
-          // Direct API failed with status
-        }
-      } catch (directError) {
-        // Error using direct data API
-      }
-      
-      // Last resort - try the full user-progress API
-      const apiResponse = await fetch(`/api/user-progress?userId=${userId}`);
-      const data = await apiResponse.json();
-      
-      if (data.error) {
-        // Error in response
-        throw new Error(data.error);
-      }
-      
-      return data;
     } catch (error) {
-      // Error fetching from API
-      return { records: [], method: 'failed' };
+      console.error('❌ Error fetching user progress:', error);
+      return { 
+        success: false,
+        records: [], 
+        count: 0,
+        method: 'failed',
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   };
   
   useEffect(() => {
-    if (!user && !isLoaded) return;
+    if (!user && !authLoading) {
+      // If no user and not loading, set up a basic fallback state
+      setIsLoading(false);
+      setError("Please sign in to view your profile.");
+      return;
+    }
+    
+    if (!user) return; // Still loading auth
     
     async function fetchUserData() {
       try {
-        setLoading(true);
+        setIsLoading(true);
+        setError(null); // Clear any previous errors
         const userIdToUse = user?.id || demoUserId;
+        
+        // Set basic user info from auth immediately
+        setUsername(user?.email?.split('@')[0] || 'Speech User');
         
         // Fetch user profile directly from Supabase
         let profileData;
         try {
           // Try with authenticated client first
           profileData = await getUserProfile(userIdToUse);
+          console.log('Profile data result:', profileData);
+          
+          // If we got an error but it's just "no rows", that's okay - we'll create a profile
+          if (profileData && profileData.error && profileData.error.message && 
+              profileData.error.message.includes("no rows")) {
+            console.log('No existing profile found, will create one');
+            profileData = { data: null, error: null };
+          }
         } catch (userProfileError) {
-          // Error fetching user profile directly
+          console.error('Error fetching user profile:', userProfileError);
+          // Continue without profile data - we'll create a default one
+          profileData = { data: null, error: null };
         }
         
         // If we have a profile, update state
         if (profileData && profileData.data) {
           // Set user name from profile if available
-          setUsername(profileData.data.display_name || 'Speech User');
+          setUsername(profileData.data.display_name || user?.email?.split('@')[0] || 'Speech User');
           setStreakCount(profileData.data.streak_count || 0);
           setTotalExercises(profileData.data.overall_progress || 0);
           setProfile(profileData.data);
@@ -130,47 +157,79 @@ export default function ProfilePage() {
           try {
             await updateUserProfile(userIdToUse);
           } catch (updateError) {
-            // Error updating user profile
+            console.warn('Error updating user profile:', updateError);
+            // Continue without updating
           }
         } else {
           // No profile data, creating default
+          console.log('No profile found, creating default profile');
           
           // Create a default profile for this user
           const newProfile = {
             user_id: userIdToUse,
-            display_name: user?.firstName || 'Speech User',
+            display_name: user?.email?.split('@')[0] || 'Speech User',
             streak_count: 0,
             last_login: new Date().toISOString(),
             overall_progress: 0
           };
-          await upsertUserProfile(newProfile);
-          setProfile(newProfile);
+          
+          try {
+            const upsertResult = await upsertUserProfile(newProfile);
+            console.log('Upsert result:', upsertResult);
+            setProfile(upsertResult.data || newProfile);
+            setUsername(newProfile.display_name);
+          } catch (upsertError) {
+            console.warn('Error creating profile, using default:', upsertError);
+            setProfile(newProfile);
+            setUsername(newProfile.display_name);
+          }
         }
         
         // This will try multiple endpoints to get the most complete data
         const exerciseData = await fetchUserProgressFromAPI(userIdToUse);
+        console.log('🔍 Exercise data result:', exerciseData);
+        console.log('🔍 Exercise data type:', typeof exerciseData);
+        console.log('🔍 Exercise data records:', exerciseData?.records);
+        console.log('🔍 Exercise data count:', exerciseData?.count);
         
         if (exerciseData && exerciseData.records && exerciseData.records.length > 0) {
           // Successfully retrieved exercise records
+          console.log(`✅ Found ${exerciseData.records.length} exercise records via ${exerciseData.method}`);
           
           // Sort by most recent first
           const sortedProgress = [...exerciseData.records].sort((a, b) => 
             new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
           );
           
+          console.log('✅ Sorted progress:', sortedProgress);
+          
           setExerciseHistory(sortedProgress);
           setDataFetchMethod(exerciseData.method || 'default');
           setIsDataLoaded(true);
         } else {
           // No exercise data found, creating sample data for demo
+          console.log('❌ No exercise data found, using fallback');
+          console.log('❌ exerciseData:', exerciseData);
+          console.log('❌ exerciseData.records:', exerciseData?.records);
+          console.log('❌ exerciseData.records.length:', exerciseData?.records?.length);
           
           // If in demo mode, load some sample progress data
           if (!user || isDemoMode) {
-            const sampleData = await fetch('/api/direct-data/sample-progress').then(res => res.json());
-            setExerciseHistory(sampleData.records || []);
-            setDataFetchMethod('sample');
-            setIsDataLoaded(true);
+            try {
+              const sampleData = await fetch('/api/direct-data/sample-progress').then(res => res.json());
+              setExerciseHistory(sampleData.records || []);
+              setDataFetchMethod('sample');
+            } catch (sampleError) {
+              console.warn('Could not load sample data:', sampleError);
+              setExerciseHistory([]);
+              setDataFetchMethod('empty');
+            }
+          } else {
+            // For real users with no data, show empty state
+            setExerciseHistory([]);
+            setDataFetchMethod('empty');
           }
+          setIsDataLoaded(true);
         }
         
         // Fetch achievement data if we have a real user
@@ -193,16 +252,45 @@ export default function ProfilePage() {
           }
         }
       } catch (err) {
-        // Error fetching user data
-        setError("Failed to load profile data. Please try again later.");
+        console.error('Error in fetchUserData:', err);
+        // Set a more specific error message based on the error type
+        if (err instanceof Error) {
+          if (err.message.includes('fetch')) {
+            setError("Network error. Please check your connection and try again.");
+          } else if (err.message.includes('auth')) {
+            setError("Authentication error. Please sign in again.");
+          } else {
+            setError(`Error loading profile: ${err.message}`);
+          }
+        } else {
+          setError("An unexpected error occurred. Please try again later.");
+        }
+        
+        // Even if there's an error, set up basic fallback data so the page isn't completely broken
+        if (user) {
+          setUsername(user.email?.split('@')[0] || 'Speech User');
+          setProfile({
+            user_id: user.id,
+            display_name: user.email?.split('@')[0] || 'Speech User',
+            streak_count: 0,
+            overall_progress: 0,
+            created_at: new Date().toISOString()
+          });
+          setStreakCount(0);
+          setTotalExercises(0);
+          setExerciseHistory([]);
+          setAchievements([
+            { id: '1', title: 'First Login', description: 'Welcome to Speech Improvement!', dateEarned: new Date().toISOString(), icon: '🏆' }
+          ]);
+        }
       } finally {
-        setLoading(false);
+        setIsLoading(false);
         setIsDataLoaded(true);
       }
     }
     
     fetchUserData();
-  }, [user, isLoaded, demoUserId, isDemoMode]);
+  }, [user, authLoading, demoUserId, isDemoMode]);
 
   // Handle manual refresh button click
   const handleRefresh = async () => {
@@ -240,11 +328,8 @@ export default function ProfilePage() {
       setIsRefreshing(false);
     }
   };
-  
-  // Toggle debug panel
-  const toggleDebug = () => setShowDebug(!showDebug);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -261,12 +346,25 @@ export default function ProfilePage() {
         <div className="text-center max-w-md p-6 bg-white rounded-lg shadow-md">
           <div className="text-red-500 text-xl mb-4">Error</div>
           <p className="text-gray-600 mb-4">{error}</p>
-          <Link 
-            href="/dashboard"
-            className="text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            Return to Dashboard
-          </Link>
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => {
+                setError(null);
+                setIsLoading(true);
+                // Trigger a re-fetch by updating a dependency
+                window.location.reload();
+              }}
+              className="text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md"
+            >
+              Try Again
+            </button>
+            <Link 
+              href="/dashboard"
+              className="text-blue-600 hover:text-blue-800 font-medium px-4 py-2 border border-blue-600 rounded-md"
+            >
+              Return to Dashboard
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -282,129 +380,6 @@ export default function ProfilePage() {
       color: '#333',
       background: 'linear-gradient(to bottom, #f0f9ff 0%, #ffffff 100%)'
     }}>
-
-    {/* Debug Panel - for development only */}
-    {showDebug && (
-      <div style={{
-        position: 'fixed',
-        top: '10px',
-        right: '10px',
-        zIndex: 1000,
-        background: 'rgba(0,0,0,0.8)',
-        color: 'white',
-        padding: '15px',
-        borderRadius: '5px',
-        maxHeight: '80vh',
-        overflow: 'auto',
-        fontSize: '12px'
-      }}>
-        <h3>Debug Info</h3>
-        <div style={{ marginBottom: '10px' }}>
-          <strong>Current User ID:</strong> {user?.id || 'No user ID'}
-        </div>
-        <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-        <div>
-          <h4>User IDs in Database:</h4>
-          <button 
-            onClick={async () => {
-              const { data } = await supabase.from('user_progress').select('user_id').limit(20);
-              const uniqueIds = [...new Set(data?.map((d: any) => d.user_id) || [])];
-              setDebugInfo({...debugInfo, allUserIds: uniqueIds});
-            }}
-            style={{
-              background: '#2563EB',
-              color: 'white',
-              border: 'none',
-              padding: '5px 10px',
-              borderRadius: '3px',
-              marginRight: '10px'
-            }}
-          >
-            Check IDs
-          </button>
-          <button 
-            onClick={async () => {
-              if (!user?.id) return;
-              const apiResult = await fetchUserProgressFromAPI(user.id);
-              setDebugInfo({...debugInfo, apiQueryResult: apiResult});
-            }}
-            style={{
-              background: '#06D6A0',
-              color: 'white',
-              border: 'none',
-              padding: '5px 10px',
-              borderRadius: '3px',
-              marginRight: '10px'
-            }}
-          >
-            Test API
-          </button>
-          <button 
-            onClick={async () => {
-              if (!user?.id) return;
-              try {
-                const response = await fetch(`/api/debug/init-db?userId=${encodeURIComponent(user.id)}`);
-                if (!response.ok) {
-                  throw new Error(`HTTP error: ${response.status}`);
-                }
-                const data = await response.json();
-                setDebugInfo({...debugInfo, dbInit: data});
-                alert("Database initialized successfully! Please refresh the page.");
-              } catch (error) {
-                setDebugInfo({...debugInfo, dbInitError: error instanceof Error ? error.message : String(error)});
-                alert("Error initializing database. See debug panel for details.");
-              }
-            }}
-            style={{
-              background: '#EF4444',
-              color: 'white',
-              border: 'none',
-              padding: '5px 10px',
-              borderRadius: '3px',
-              marginRight: '10px'
-            }}
-          >
-            Initialize DB
-          </button>
-          <button 
-            onClick={() => setShowDebug(false)}
-            style={{
-              background: '#4B5563',
-              color: 'white',
-              border: 'none',
-              padding: '5px 10px',
-              borderRadius: '3px'
-            }}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    )}
-
-    {/* Button to show debug panel */}
-    <button 
-      onClick={() => setShowDebug(!showDebug)}
-      style={{
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        zIndex: 999,
-        background: '#3B82F6',
-        color: 'white',
-        border: 'none',
-        borderRadius: '50%',
-        width: '40px',
-        height: '40px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-      }}
-    >
-      🔍
-    </button>
 
       {/* Animation Keyframes */}
       <style jsx global>{`
@@ -489,7 +464,6 @@ export default function ProfilePage() {
                 </span>
               </div>
             )}
-            <UserButton afterSignOutUrl="/" />
           </div>
         </div>
       </header>
@@ -529,7 +503,7 @@ export default function ProfilePage() {
                 textShadow: '1px 1px 0px rgba(0, 0, 0, 0.2)'
               }}>
                 <User style={{ width: '1.5rem', height: '1.5rem', animation: 'pulse 2s infinite ease-in-out' }} />
-                {user?.firstName ? `${user.firstName}'s Profile` : 'My Profile'}
+                {user?.email ? `${user.email.split('@')[0]}'s Profile` : 'My Profile'}
               </h2>
               <p style={{
                 fontSize: '1.1rem',
@@ -557,7 +531,7 @@ export default function ProfilePage() {
                   color: 'white',
                   boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
                 }}>
-                  {user?.firstName?.[0] || 'S'}
+                  {user?.email?.[0]?.toUpperCase() || 'S'}
                 </div>
                 
                 <div style={{ flex: 1 }}>
@@ -567,7 +541,7 @@ export default function ProfilePage() {
                     color: '#2563EB',
                     marginBottom: '0.5rem'
                   }}>
-                    {user?.firstName ? `${user.firstName} ${user?.lastName || ''}` : 'Speech Star'}
+                    {user?.email ? user.email.split('@')[0] : 'Speech Star'}
                   </h3>
                   
                   <div style={{ marginBottom: '1rem' }}>

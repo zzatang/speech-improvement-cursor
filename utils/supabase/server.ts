@@ -1,32 +1,36 @@
-import { auth } from '@clerk/nextjs/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
-export async function createClerkSupabaseClientSsr() {
-    // The `useAuth()` hook is used to access the `getToken()` method
-    const { getToken } = await auth()
+export function createClient() {
+  const cookieStore = cookies()
 
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_KEY!,
-        {
-            global: {
-                // Get the custom Supabase token from Clerk
-                fetch: async (url, options = {}) => {
-                    const clerkToken = await getToken({
-                        template: 'supabase',
-                    })
-
-                    // Insert the Clerk Supabase token into the headers
-                    const headers = new Headers(options?.headers)
-                    headers.set('Authorization', `Bearer ${clerkToken}`)
-
-                    // Now call the default fetch
-                    return fetch(url, {
-                        ...options,
-                        headers,
-                    })
-                },
-            },
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
         },
-    )
+        set(name: string, value: string, options: any) {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+        remove(name: string, options: any) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // The `delete` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
 }

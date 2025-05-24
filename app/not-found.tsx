@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { isClerkAvailable } from '@/utils/auth-helpers'
+import { isSupabaseAvailable } from '@/utils/auth-helpers'
 import { ArrowLeft } from 'lucide-react'
 
 export default function NotFound() {
-  // In CI environment, we don't use Clerk auth or any auth-related components
+  // In CI environment, we don't use Supabase auth or any auth-related components
   const isCI = process.env.CI === 'true' || process.env.IS_CI_BUILD === 'true'
   
   return (
@@ -23,7 +23,7 @@ export default function NotFound() {
             </Link>
           </Button>
           
-          {!isCI && isClerkAvailable() && (
+          {!isCI && isSupabaseAvailable() && (
             <Button asChild variant="outline">
               <Link href="/dashboard">
                 Go to Dashboard

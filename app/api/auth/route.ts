@@ -1,10 +1,11 @@
-import { auth } from '@clerk/nextjs/server';
+import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const { userId, sessionId } = await auth();
+  const supabase = createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (error || !user) {
     return new NextResponse(
       JSON.stringify({ error: 'Unauthorized' }),
       { status: 401 }
@@ -12,16 +13,17 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    userId,
-    sessionId,
+    userId: user.id,
+    email: user.email,
     authenticated: true,
   });
 }
 
 export async function POST(request: Request) {
-  const { userId, sessionId } = await auth();
+  const supabase = createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (!userId) {
+  if (error || !user) {
     return new NextResponse(
       JSON.stringify({ error: 'Unauthorized' }),
       { status: 401 }
@@ -35,8 +37,8 @@ export async function POST(request: Request) {
     // For example, syncing with Supabase user profile
 
     return NextResponse.json({
-      userId,
-      sessionId,
+      userId: user.id,
+      email: user.email,
       authenticated: true,
       data: body
     });

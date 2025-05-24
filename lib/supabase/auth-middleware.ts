@@ -1,49 +1,100 @@
-import { auth } from '@clerk/nextjs/server';
-import { supabase } from './client';
-import { upsertUserProfile } from './services/user-service';
+import { createServerClient } from '@supabase/ssr'
+import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 
 /**
- * Integrates Clerk auth with Supabase
- * Sets Supabase auth to use the Clerk user JWT
+ * Creates a Supabase client for server-side operations
  */
-export const getSupabaseWithAuth = async () => {
-  const { getToken, userId } = await auth();
+export const createSupabaseServerClient = () => {
+  const cookieStore = cookies()
   
-  if (!userId) {
-    throw new Error('User not authenticated');
-  }
-
-  // Get the JWT from Clerk
-  const supabaseAccessToken = await getToken({ template: 'supabase' });
-  
-  if (!supabaseAccessToken) {
-    throw new Error('Failed to get access token for Supabase');
-  }
-
-  // Set the Supabase client to use the Clerk JWT
-  const authenticatedSupabase = supabase.auth.setSession({
-    access_token: supabaseAccessToken as string,
-    refresh_token: '',
-  });
-
-  // Ensure the user profile exists in Supabase
-  await upsertUserProfile({
-    user_id: userId,
-    last_login: new Date().toISOString(),
-  });
-
-  return authenticatedSupabase;
-};
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
+}
 
 /**
- * Gets the current user ID from Clerk auth
+ * Gets the current user from Supabase Auth
+ */
+export const getCurrentUser = async () => {
+  const supabase = createSupabaseServerClient()
+  
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  if (error || !user) {
+    throw new Error('User not authenticated')
+  }
+  
+  return user
+}
+
+/**
+ * Gets the current user ID from Supabase Auth
  */
 export const getCurrentUserId = async () => {
-  const { userId } = await auth();
-  
-  if (!userId) {
-    throw new Error('User not authenticated');
+  const user = await getCurrentUser()
+  return user.id
+}
+
+/**
+ * Middleware helper for protecting routes
+ */
+export const protectRoute = async (request: NextRequest) => {
+  const response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: any) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
-  
-  return userId;
-}; 
+
+  return response
+} 

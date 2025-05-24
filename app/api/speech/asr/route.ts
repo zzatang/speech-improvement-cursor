@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 // We don't need fs or path here anymore
 // import fs from 'fs';
 // import path from 'path';
@@ -24,11 +23,6 @@ const pronunciationAssessmentConfig = { ... };
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-    }
-
     const formData = await request.formData();
     const audioBlob = formData.get('audio') as Blob;
     const languageCode = formData.get('languageCode') as string || process.env.GOOGLE_STT_LANGUAGE_CODE || 'en-AU';
@@ -78,12 +72,6 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   try {
-    // Check authentication
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     // Return supported features
     return NextResponse.json({
       service: 'Google Cloud Speech-to-Text',

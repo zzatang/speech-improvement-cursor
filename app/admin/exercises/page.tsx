@@ -1,7 +1,7 @@
 "use client";
 
+import { useAuth } from "@/components/providers/supabase-auth-provider";
 import { useState, useEffect } from 'react';
-import { useUser } from '@clerk/nextjs';
 import { 
   getAllExercises, 
   saveExercise, 
@@ -32,7 +32,9 @@ import { useSupabase } from '@/utils/supabase/context';
 import React from 'react';
 
 export default function ExercisesAdminPage() {
-  const { user, isLoaded, isSignedIn } = useUser();
+  const { user, loading } = useAuth();
+  const isLoaded = !loading;
+  const isSignedIn = !!user;
   const queryClient = useQueryClient();
   const supabaseClient = useSupabase();
 

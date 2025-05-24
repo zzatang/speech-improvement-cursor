@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { createClient } from '@/utils/supabase/server';
 
 // Prevent static generation - this API needs to be dynamic
 export const dynamic = 'force-dynamic';
@@ -8,15 +8,17 @@ export const dynamic = 'force-dynamic';
 // to retrieve all user progress records directly without RLS limitations
 export async function GET(request: Request) {
   try {
-    // Verify the user is authenticated
-    const { userId } = await auth();
+    // Verify the user is authenticated using Supabase
+    const supabase = createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    if (!userId) {
+    if (authError || !user) {
+      console.log('[MCP Direct API] Authentication failed:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     const { searchParams } = new URL(request.url);
-    const targetUserId = searchParams.get('userId') || userId;
+    const targetUserId = searchParams.get('userId') || user.id;
     
     console.log(`[MCP Direct API] Attempting to fetch progress for user ${targetUserId}`);
     

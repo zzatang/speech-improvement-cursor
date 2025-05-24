@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useUser, UserButton } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/supabase-auth-provider";
 import { getUserProfile, upsertUserProfile, getUserProgress, updateStreakCount, updateUserProfile } from "@/lib/supabase/services/user-service";
 import { 
   Card, 
@@ -59,14 +59,14 @@ export default function DashboardPage() {
   const [achievements, setAchievements] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const { user } = useUser();
+  const { user, loading: authLoading, signOut } = useAuth();
 
   // Add this useEffect at the beginning of the component
   useEffect(() => {
-    // Component lifecycle hooks without debug logging
+    console.log('🎯 Dashboard: Component mounted, user:', user?.id);
     
     return () => {
-      // Clean up function
+      console.log('🎯 Dashboard: Component unmounting');
     };
   }, []);
 
@@ -180,33 +180,44 @@ export default function DashboardPage() {
           setIsAdmin((profileData as any).role === 'admin');
         }
         
-        // Fetch exercise history using direct data API instead of Supabase RLS
+        // Fetch exercise history using our working MCP API endpoint
         try {
-          // First try with direct-data API that bypasses RLS
-          const response = await fetch(`/api/direct-data/user-progress?userId=${user.id}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.records && data.records.length > 0) {
-              // Sort by most recent first
-              const sortedProgress = [...data.records].sort((a, b) => 
+          console.log('🚀 Dashboard: Fetching exercise history for user:', user.id);
+          
+          // Use our working MCP API endpoint
+          const mcpResponse = await fetch('/api/mcp/user-progress', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId: user.id })
+          });
+
+          console.log('📞 Dashboard: MCP API response status:', mcpResponse.status);
+
+          if (mcpResponse.ok) {
+            const mcpData = await mcpResponse.json();
+            console.log('✅ Dashboard: MCP API response:', mcpData);
+            
+            if (mcpData.success && mcpData.records && mcpData.records.length > 0) {
+              // Sort by most recent first and take only the 5 most recent
+              const sortedProgress = [...mcpData.records].sort((a, b) => 
                 new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
               );
+              
+              console.log('✅ Dashboard: Setting exercise history with', sortedProgress.length, 'records');
               setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
-              return;
+            } else {
+              console.log('ℹ️ Dashboard: No exercise records found');
+              setExerciseHistory([]);
             }
-          }
-          
-          // If direct API fails, fallback to standard approach
-          const { data: progressData } = await getUserProgress(user.id);
-          if (progressData) {
-            // Sort by most recent first
-            const sortedProgress = [...progressData].sort((a, b) => 
-              new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-            );
-            setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
+          } else {
+            console.log('❌ Dashboard: MCP API failed with status:', mcpResponse.status);
+            setExerciseHistory([]);
           }
         } catch (progressError) {
-          // Failing to load history isn't critical, so we don't throw
+          console.error('❌ Dashboard: Error fetching exercise history:', progressError);
+          setExerciseHistory([]);
         }
         
         // For achievements (dummy data for now)
@@ -251,29 +262,38 @@ export default function DashboardPage() {
         
         // Refresh exercise history too
         try {
-          // First try the direct API that bypasses RLS
-          const response = await fetch(`/api/direct-data/user-progress?userId=${user.id}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.records && data.records.length > 0) {
-              const sortedProgress = [...data.records].sort((a, b) => 
+          console.log('🔄 Dashboard: Refreshing exercise history for user:', user.id);
+          
+          // Use our working MCP API endpoint
+          const mcpResponse = await fetch('/api/mcp/user-progress', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId: user.id })
+          });
+
+          if (mcpResponse.ok) {
+            const mcpData = await mcpResponse.json();
+            console.log('✅ Dashboard: Refresh MCP API response:', mcpData);
+            
+            if (mcpData.success && mcpData.records && mcpData.records.length > 0) {
+              const sortedProgress = [...mcpData.records].sort((a, b) => 
                 new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
               );
+              console.log('✅ Dashboard: Refreshed exercise history with', sortedProgress.length, 'records');
               setExerciseHistory(sortedProgress.slice(0, 5));
-              return;
+            } else {
+              console.log('ℹ️ Dashboard: No exercise records found during refresh');
+              setExerciseHistory([]);
             }
-          }
-          
-          // Fallback to standard approach if direct API fails
-          const { data: progressData } = await getUserProgress(user.id);
-          if (progressData) {
-            const sortedProgress = [...progressData].sort((a, b) => 
-              new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
-            );
-            setExerciseHistory(sortedProgress.slice(0, 5));
+          } else {
+            console.log('❌ Dashboard: Refresh MCP API failed with status:', mcpResponse.status);
+            setExerciseHistory([]);
           }
         } catch (progressError) {
-          // Non-critical error, continue
+          console.error('❌ Dashboard: Error refreshing exercise history:', progressError);
+          setExerciseHistory([]);
         }
       }
     } catch (err) {
@@ -390,13 +410,10 @@ export default function DashboardPage() {
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '0.5rem',
-              backgroundColor: '#FFD166',
-              padding: '0.5rem 0.75rem',
+              gap: '1rem',
+              padding: '0.5rem 1rem',
+              backgroundColor: '#EFF6FF',
               borderRadius: '1rem',
-              color: '#4B5563',
-              fontWeight: '600',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
               animation: 'pulse 3s infinite ease-in-out'
             }}>
               <Calendar style={{ width: '1.25rem', height: '1.25rem', color: '#2563EB' }} />
@@ -404,7 +421,18 @@ export default function DashboardPage() {
                 {streakCount !== null ? `Day ${streakCount} Streak!` : 'No Streak Yet'} 
               </span>
             </div>
-            <UserButton afterSignOutUrl="/" />
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                signOut();
+              }}
+              style={{
+                borderRadius: '1rem',
+                fontWeight: '600'
+              }}
+            >
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>
@@ -786,7 +814,7 @@ export default function DashboardPage() {
                       
                       <div style={{ textAlign: 'center' }}>
                         <p style={{ fontWeight: '600', marginBottom: '0.5rem' }}>
-                          {user?.firstName || 'Your'} Avatar
+                          {user?.email?.split('@')[0] || 'Your'} Avatar
                         </p>
                         <span style={{
                           display: 'inline-block',

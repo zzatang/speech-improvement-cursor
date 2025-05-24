@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
 import { 
   Card, 
   CardContent, 
@@ -28,9 +27,9 @@ import {
   getUserProfile 
 } from '@/lib/supabase/services/user-service';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth } from '@clerk/nextjs';
+import { useAuth } from '@/components/providers/supabase-auth-provider';
 import { SpeechExercise } from '@/lib/supabase/types';
-import { getSupabaseWithAuth } from '@/lib/supabase/getSupabaseWithAuth';
+import { supabase } from '@/lib/supabase/client';
 
 // Extend the STTResponse interface to include the targetSoundAnalysis property
 interface ExtendedSTTResponse extends STTResponse {
@@ -121,9 +120,8 @@ export default function RepeatAfterMePage() {
   
   // Router and user
   const router = useRouter();
-  const { user } = useUser();
+  const { user } = useAuth();
   const [streakCount, setStreakCount] = useState<number | null>(null);
-  const { getToken, userId } = useAuth();
   
   // The current phrase is determined by the filtered phrases
   // const currentPhrase = practicePhrases[currentPhraseIndex];
@@ -531,7 +529,7 @@ export default function RepeatAfterMePage() {
     try {
       setLoadingAnalysis(true);
       setFeedback(null);
-      if (!userId) {
+      if (!user?.id) {
         throw new Error('You must be logged in to analyze recordings');
       }
 
@@ -602,12 +600,12 @@ export default function RepeatAfterMePage() {
       
       // Save user progress to Supabase using authenticated client
       try {
-        const supabaseClient = await getSupabaseWithAuth(() => getToken({ template: 'supabase' }));
+        const supabaseClient = supabase; // Use regular supabase client since we're using Supabase Auth
         const exerciseId = `repeat_${currentPhrase.focus.toLowerCase().replace(/\s+/g, '_')}_${currentPhraseIndex}`;
         await supabaseClient
           .from('user_progress')
           .upsert([{
-            user_id: userId,
+            user_id: user?.id,
             exercise_id: exerciseId,
             score: scorePercentage,
             completed_at: new Date().toISOString(),
@@ -934,7 +932,41 @@ export default function RepeatAfterMePage() {
                 disabled={isMuted}
               />
             </div>
-            <UserButton afterSignOutUrl="/" />
+            
+            {/* User Display */}
+            {user && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                backgroundColor: '#EFF6FF',
+                padding: '0.5rem 1rem',
+                borderRadius: '1rem',
+                border: '1px solid #BFDBFE'
+              }}>
+                <div style={{
+                  width: '2rem',
+                  height: '2rem',
+                  borderRadius: '50%',
+                  backgroundColor: '#3B82F6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '0.875rem',
+                  fontWeight: '600'
+                }}>
+                  {user.email?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <span style={{
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  color: '#2563EB'
+                }}>
+                  {user.email}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </header>

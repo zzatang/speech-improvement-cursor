@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Image as ImageIcon } from "lucide-react";
-import { useUser } from '@clerk/nextjs';
+import { useAuth } from "@/components/providers/supabase-auth-provider";
 import { useQuery } from '@tanstack/react-query';
 import { getUserProfile } from '@/lib/supabase/services/user-service';
 import Image from "next/image";
@@ -38,7 +38,9 @@ const dummyAchievements: Achievement[] = [
 ];
 
 export default function AdminAchievementsPage() {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { user, loading } = useAuth();
+  const isLoaded = !loading;
+  const isSignedIn = !!user;
   
   // Fetch user profile from Supabase to get the role
   const {
@@ -54,7 +56,7 @@ export default function AdminAchievementsPage() {
   const isAdmin = profile && ((profile as any).role === 'admin');
 
   const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingState, setLoadingState] = useState(true);
   // const [error, setError] = useState<string | null>(null);
 
   // Placeholder for fetching achievements
@@ -64,7 +66,7 @@ export default function AdminAchievementsPage() {
       // Replace with: getAllAchievements().then(setAchievements).catch(...)
       setAchievements(dummyAchievements);
     }
-    setLoading(false);
+    setLoadingState(false);
   }, [isAdmin]);
 
   // Add loading state check
@@ -112,7 +114,7 @@ export default function AdminAchievementsPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loadingState ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-gray-400">Loading achievements...</td>
                 </tr>

@@ -12,10 +12,6 @@ export function getEnvOrFallback(key: string, fallback: string = ''): string {
   // In CI mode, return a valid-looking fallback
   if (isCI) {
     const ciFallbacks: Record<string, string> = {
-      // Clerk
-      'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY': 'pk_live_Y2xlcmsuYXBwLmV4YW1wbGUuY29tJA',
-      'CLERK_SECRET_KEY': 'sk_live_Y2xlcmsuYXBwLmV4YW1wbGUuY29tJA',
-      
       // Supabase
       'NEXT_PUBLIC_SUPABASE_URL': 'https://example.supabase.co',
       'NEXT_PUBLIC_SUPABASE_ANON_KEY': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiJ9.ZopqoUt20w92h6kX9WZcJ_zZznUVPgN9HCUmIrH5l0E',
@@ -47,8 +43,6 @@ export function checkRequiredEnvVars(): {valid: boolean, missing: string[]} {
   }
   
   const required = [
-    'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-    'CLERK_SECRET_KEY',
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'GOOGLE_CLOUD_PROJECT_ID',

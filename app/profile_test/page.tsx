@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, BarChart2, RefreshCw } from "lucide-react";
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/supabase-auth-provider";
+import { supabase } from "@/lib/supabase/client";
 import { Progress } from "@/components/ui/progress";
 
 interface ExerciseRecord {
@@ -23,7 +24,9 @@ export default function ProfileTestPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const { user, isLoaded, isSignedIn } = useUser();
+  const { user, loading: authLoading } = useAuth();
+  const isLoaded = !authLoading;
+  const isSignedIn = !!user;
 
   // Use this approach to directly fetch from database using a public API endpoint
   const fetchExerciseHistory = async (userId: string) => {

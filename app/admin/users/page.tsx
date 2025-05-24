@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/supabase-auth-provider";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Eye, Ban } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,7 +13,8 @@ import UserModal from '@/components/admin/users/UserModal';
 import DeleteConfirmationDialog from '@/components/admin/users/DeleteConfirmationDialog';
 
 export default function AdminUsersPage() {
-  const { user, isLoaded } = useUser();
+  const { user, loading } = useAuth();
+  const isLoaded = !loading;
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

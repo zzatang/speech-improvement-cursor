@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { UserButton, useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/components/providers/supabase-auth-provider";
+import { supabase } from "@/lib/supabase/client";
 import { 
   Card, 
   CardContent, 
@@ -132,7 +133,7 @@ export default function ReadingPracticePage() {
   // Use filteredTexts for the current text
   const currentText = filteredTexts[currentTextIndex];
   
-  const { getToken, userId } = useAuth();
+  const { user } = useAuth();
   
   // Move resetExerciseState above useEffect
   const resetExerciseState = () => {
@@ -369,7 +370,7 @@ export default function ReadingPracticePage() {
       formData.append('languageCode', 'en-AU');
       
       // Get the current user ID from Clerk
-      if (!userId) {
+      if (!user) {
         throw new Error("Authentication required");
       }
       
@@ -505,7 +506,7 @@ export default function ReadingPracticePage() {
       
       // Save the user's progress to Supabase using authenticated client
       try {
-        const supabaseClient = await getSupabaseWithAuth(() => getToken({ template: 'supabase' }));
+        const supabaseClient = supabase; // Use regular supabase client since we're using Supabase Auth
         // Create a consistent exercise ID format that includes text title and focus
         const exerciseId = typeof currentText.id === 'string' ? 
           currentText.id :
@@ -514,7 +515,7 @@ export default function ReadingPracticePage() {
         const { data: progressData, error: progressError } = await supabaseClient
           .from('user_progress')
           .upsert([{
-            user_id: userId,
+            user_id: user.id,
             exercise_id: exerciseId,
             score: exerciseScore,
             completed_at: new Date().toISOString(),
@@ -739,8 +740,40 @@ export default function ReadingPracticePage() {
               <Settings className="h-5 w-5" />
                         </Button>
 
-            {/* User Button */} 
-            <UserButton afterSignOutUrl="/" />
+            {/* User Display */}
+            {user && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                backgroundColor: '#EFF6FF',
+                padding: '0.5rem 1rem',
+                borderRadius: '1rem',
+                border: '1px solid #BFDBFE'
+              }}>
+                <div style={{
+                  width: '2rem',
+                  height: '2rem',
+                  borderRadius: '50%',
+                  backgroundColor: '#3B82F6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  fontSize: '0.875rem',
+                  fontWeight: '600'
+                }}>
+                  {user.email?.[0]?.toUpperCase() || 'U'}
+                </div>
+                <span style={{
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  color: '#2563EB'
+                }}>
+                  {user.email}
+                </span>
+              </div>
+            )}
                       </div>
                       </div>
       </header>

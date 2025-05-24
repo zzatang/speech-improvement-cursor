@@ -1,6 +1,6 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { NextResponse, NextRequest } from 'next/server';
+import { synthesizeSpeech } from '@/lib/google/text-to-speech';
 
 // TTS configuration options
 interface TTSOptions {
@@ -128,15 +128,6 @@ export async function POST(request: Request) {
  */
 export async function GET(request: Request) {
   try {
-    // Check authentication
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401 }
-      );
-    }
-
     // Return a simplified response for now
     return NextResponse.json({ 
       voices: [

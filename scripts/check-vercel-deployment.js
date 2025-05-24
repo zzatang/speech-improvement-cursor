@@ -12,8 +12,6 @@ const url = require('url');
 
 // Required environment variables to check
 const REQUIRED_VARIABLES = [
-  'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
-  'CLERK_SECRET_KEY',
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
   'GOOGLE_CLOUD_PROJECT_ID',

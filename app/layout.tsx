@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import localFont from 'next/font/local'
 import TanstackClientProvider from '@/components/providers/tanstack-client-provider'
-import ClerkClientProvider from '@/components/providers/clerk-client-provider'
+import SupabaseAuthProvider from '@/components/providers/supabase-auth-provider'
 import { Inter } from 'next/font/google'
 import { SupabaseProvider } from '@/utils/supabase/context'
 import { logEnvironmentStatus } from "@/lib/vercel/environment-check"
@@ -82,13 +82,13 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <ClerkClientProvider>
+        <SupabaseAuthProvider>
           <TanstackClientProvider>
             <SupabaseProvider>
               {children}
             </SupabaseProvider>
           </TanstackClientProvider>
-        </ClerkClientProvider>
+        </SupabaseAuthProvider>
       </body>
     </html>
   )

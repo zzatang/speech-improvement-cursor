@@ -8,7 +8,8 @@ import { getSettings, updateSettings } from '@/lib/supabase/services/settings-se
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useAuth } from '@clerk/nextjs';
+import { useAuth } from "@/components/providers/supabase-auth-provider";
+import { supabase } from "@/lib/supabase/client";
 import { getUserProfile } from '@/lib/supabase/services/user-service';
 import { getSupabaseWithAuth } from '@/lib/supabase/getSupabaseWithAuth';
 import { CheckCircle } from 'lucide-react';
@@ -41,8 +42,9 @@ export default function AdminSettingsPage() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isLoaded, isSignedIn, user } = useUser();
-  const { getToken } = useAuth();
+  const { user, loading } = useAuth();
+  const isLoaded = !loading;
+  const isSignedIn = !!user;
 
   // Fetch user profile from Supabase to get the role
   const {
@@ -81,14 +83,9 @@ export default function AdminSettingsPage() {
   // Save settings mutation
   const { mutate: saveSettings, isPending: isSaving } = useMutation({
     mutationFn: async (values: GeneralSettingsFormValues) => {
-      // Log the token process
-      console.log("Getting token for Supabase");
-      const supabaseClient = await getSupabaseWithAuth(() => 
-        getToken({ template: 'supabase' }).then(token => {
-          console.log("Clerk token received:", token ? "Yes" : "No");
-          return token;
-        })
-      );
+      // Use regular supabase client since we're using Supabase Auth
+      console.log("Using Supabase Auth client");
+      const supabaseClient = supabase;
       return updateSettings(supabaseClient, values);
     },
     onSuccess: () => {

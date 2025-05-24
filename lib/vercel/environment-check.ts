@@ -14,10 +14,6 @@ export interface EnvironmentCheckResult {
 
 // Required environment variables with validation functions
 const requiredVariables = {
-  // Clerk
-  'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY': (val: string) => val.startsWith('pk_'),
-  'CLERK_SECRET_KEY': (val: string) => val.startsWith('sk_'),
-  
   // Supabase
   'NEXT_PUBLIC_SUPABASE_URL': (val: string) => val.includes('supabase.co'),
   'NEXT_PUBLIC_SUPABASE_ANON_KEY': (val: string) => val.length > 20,
