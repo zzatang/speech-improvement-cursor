@@ -1,20 +1,19 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { createClient } from '@/utils/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { generatePracticeSpeech, synthesizeSpeech, formatForTTS } from '@/lib/google/text-to-speech';
 
 /**
  * API endpoint for generating speech practice phrases focused on specific sounds
  * This endpoint is specifically designed for the "Repeat After Me" exercise
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401 }
-      );
+    // Get the user from Supabase
+    const supabase = createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get request parameters
@@ -22,8 +21,8 @@ export async function POST(request: Request) {
     const { sound, difficulty, customText, returnText } = body;
     
     if (!sound && !customText) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Either sound or customText is required' }),
+      return NextResponse.json(
+        { error: 'Either sound or customText is required' },
         { status: 400 }
       );
     }
@@ -52,11 +51,11 @@ export async function POST(request: Request) {
     }
     
     if (!response.audioContent) {
-      return new NextResponse(
-        JSON.stringify({ 
+      return NextResponse.json(
+        { 
           error: 'Failed to generate speech',
           details: response.error
-        }),
+        },
         { status: 500 }
       );
     }
@@ -64,11 +63,11 @@ export async function POST(request: Request) {
     
     // If returnText is true, return the text along with a success message
     if (returnText && textToReturn) {
-      return new NextResponse(
-        JSON.stringify({
+      return NextResponse.json(
+        {
           success: true,
           text: textToReturn
-        }),
+        },
         {
           headers: {
             'Content-Type': 'application/json',
@@ -79,18 +78,19 @@ export async function POST(request: Request) {
     }
     
     // Otherwise, return audio content with appropriate headers
-    return new NextResponse(response.audioContent, {
+    return NextResponse.json(response.audioContent, {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'public, max-age=86400', // Cache for 1 day
       },
     });
   } catch (error) {
-    return new NextResponse(
-      JSON.stringify({ 
+    console.error('Practice session error:', error);
+    return NextResponse.json(
+      { 
         error: 'Failed to generate practice speech',
         details: error instanceof Error ? error.message : 'Unknown error' 
-      }),
+      },
       { 
         status: 500,
         headers: {
@@ -106,13 +106,12 @@ export async function POST(request: Request) {
  */
 export async function GET() {
   try {
-    // Check authentication
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401 }
-      );
+    // Get the user from Supabase
+    const supabase = createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     // Return available practice options
@@ -125,8 +124,8 @@ export async function GET() {
       ]
     });
   } catch (error) {
-    return new NextResponse(
-      JSON.stringify({ error: 'Failed to retrieve practice options' }),
+    return NextResponse.json(
+      { error: 'Failed to retrieve practice options' },
       { status: 500 }
     );
   }

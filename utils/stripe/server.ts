@@ -12,7 +12,6 @@ import {
     calculateTrialEndUnixTimestamp
 } from '@/utils/helpers';
 import { getStatusRedirect } from '@/utils/helpers';
-import { auth, currentUser } from '@clerk/nextjs/server';
 import { Tables } from '@/types/database.types';
 
 type Price = Tables<'prices'>;
@@ -28,10 +27,11 @@ export async function checkoutWithStripe(
     redirectPath: string = '/account'
 ): Promise<CheckoutResponse> {
     try {
-        // Get the user from Clerk
-        const user = await currentUser();
+        // Get the user from Supabase
+        const supabase = createClient();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-        if (!user) {
+        if (userError || !user) {
             throw new Error('Could not get user session.');
         }
 
@@ -40,7 +40,7 @@ export async function checkoutWithStripe(
         try {
             customer = await createOrRetrieveCustomer({
                 uuid: user.id || '',
-                email: user.emailAddresses[0]?.emailAddress || '',
+                email: user.email || '',
             });
         } catch (err) {
             console.error(err);
@@ -121,9 +121,10 @@ export async function checkoutWithStripe(
 
 export async function createStripePortal(currentPath: string) {
     try {
-        const user = await currentUser();
+        const supabase = createClient();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-        if (!user) {
+        if (userError || !user) {
             throw new Error('Could not get user session.');
         }
 
@@ -131,7 +132,7 @@ export async function createStripePortal(currentPath: string) {
         try {
             customer = await createOrRetrieveCustomer({
                 uuid: user.id || '',
-                email: user.emailAddresses[0]?.emailAddress || ''
+                email: user.email || ''
             });
         } catch (err) {
             throw new Error('Unable to access customer record.');
@@ -172,9 +173,10 @@ export async function createStripePortal(currentPath: string) {
 
 export async function createBillingPortalSession() {
     try {
-        const user = await currentUser()
+        const supabase = createClient();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-        if (!user) {
+        if (userError || !user) {
             throw new Error("No User")
         }
 

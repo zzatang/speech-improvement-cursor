@@ -1,5 +1,5 @@
+import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { transcribeSpeech } from '@/lib/google/speech-to-text';
 import { ApiErrorHandler } from '@/lib/api/error-handler';
 import type { SpeechRecognitionResponse, ApiError } from '@/types/api';
@@ -10,25 +10,28 @@ import type { SpeechRecognitionResponse, ApiError } from '@/types/api';
  */
 export async function POST(request: NextRequest): Promise<NextResponse<SpeechRecognitionResponse | ApiError>> {
   try {
-    // Check authentication
-    const { userId } = await auth();
-    if (!userId) {
+    // Get the user from Supabase
+    const supabase = createClient();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return ApiErrorHandler.createUnauthorizedError();
     }
 
     // Get form data
     const formData = await request.formData();
-    const audioBlob = formData.get('audio') as Blob;
+    const audioFile = formData.get('audio') as File;
     const targetText = formData.get('targetText') as string | null;
     const languageCode = formData.get('languageCode') as string || process.env.GOOGLE_STT_LANGUAGE_CODE || 'en-AU';
 
     // Validate request
-    if (!audioBlob) {
+    if (!audioFile) {
       return ApiErrorHandler.createValidationError('Audio data is required');
     }
 
-    // Convert Blob to Buffer
-    const audioBytes = Buffer.from(await audioBlob.arrayBuffer());
+    // Convert File to Buffer
+    const audioBuffer = await audioFile.arrayBuffer();
+    const audioBytes = Buffer.from(audioBuffer);
 
     // Process speech with the Google Cloud STT API
     const sttResponse = await transcribeSpeech({
@@ -39,29 +42,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<SpeechRec
       targetText: targetText || undefined
     });
 
-    // Check for errors
-    if (sttResponse.error) {
-      // Special handling for "No speech detected" - return as a valid response
-      if (sttResponse.error === 'No speech detected') {
-        return NextResponse.json({
-          transcript: '',
-          confidence: 0,
-          error: 'No speech detected'
-        });
-      }
-      
-      // For other errors, return error response
-      return ApiErrorHandler.createErrorResponse(
-        'Failed to process speech',
-        sttResponse.error,
-        500
-      );
-    }
-
-    // Return the response
-    return NextResponse.json(sttResponse);
+    // Return successful response
+    return NextResponse.json({
+      transcript: sttResponse.transcript,
+      confidence: sttResponse.confidence,
+      wordTimeOffsets: sttResponse.wordTimings,
+      error: sttResponse.error
+    });
 
   } catch (error) {
+    console.error('Speech recognition error:', error);
     return ApiErrorHandler.handleUnknownError(error);
   }
 } 
