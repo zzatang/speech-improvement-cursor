@@ -59,7 +59,6 @@ function createSTTClient() {
   const credentials = process.env.GOOGLE_CLOUD_CREDENTIALS;
   
   if (!credentials) {
-    console.warn('Missing Google Cloud credentials. Using fallback mock STT client.');
     return createMockSTTClient();
   }
   
@@ -70,8 +69,6 @@ function createSTTClient() {
       projectId: process.env.GOOGLE_CLOUD_PROJECT_ID 
     });
   } catch (error) {
-    console.error('Error creating Google Cloud STT client:', error);
-    console.warn('Falling back to mock STT client due to credentials error');
     return createMockSTTClient();
   }
 }
@@ -215,7 +212,6 @@ export async function transcribeSpeech(options: STTRequest): Promise<STTResponse
     
     return sttResponse;
   } catch (error) {
-    console.error('Error transcribing speech:', error);
     return {
       transcript: '',
       confidence: 0,
@@ -251,7 +247,6 @@ function analyzePhonetics(pronunciationAssessment: any): PhoneticAnalysis {
 
   } else {
       // Handle cases where the score is missing or invalid
-      console.warn("Could not extract valid overall pronunciation score from assessment object.");
       suggestions.push("Detailed pronunciation analysis unavailable for this recording.");
       // Keep calculatedScore at default 50
   }
@@ -281,9 +276,7 @@ export function analyzeTargetSound(
   suggestions: string[];
   phraseMatch?: number;
 } {
-  console.log(`Analyzing target sound "${targetSound}" in transcript: "${transcript}"`);
   if (targetPhrase) {
-    console.log(`Target phrase: "${targetPhrase}"`);
   }
   
   const fullAnalysis = analyzePhonetics(transcript);
@@ -296,7 +289,6 @@ export function analyzeTargetSound(
   if (targetPhrase) {
     // Calculate similarity between transcript and target phrase
     phraseMatchScore = calculatePhraseMatchScore(transcript, targetPhrase);
-    console.log(`Phrase match score: ${phraseMatchScore}%`);
     
     // If the user said something completely different, provide feedback about that first
     if (phraseMatchScore < 50) {
@@ -316,7 +308,6 @@ export function analyzeTargetSound(
   
   // If the target sound isn't one we analyze, return default values
   if (!fullAnalysis.sounds[normalizedTarget]) {
-    console.log(`Target sound "${normalizedTarget}" is not in our analysis set`);
     return {
       accuracy: Math.min(80, phraseMatchScore), // Cap accuracy based on phrase match
       correctWords: [],
@@ -327,24 +318,20 @@ export function analyzeTargetSound(
   }
   
   const targetAnalysis = fullAnalysis.sounds[normalizedTarget];
-  console.log(`Sound analysis for "${normalizedTarget}":`, JSON.stringify(targetAnalysis));
   
   // Extract correct and incorrect words
   const allWords = transcript.toLowerCase().split(/\s+/);
   const pattern = new RegExp(`\\b\\w*${normalizedTarget}\\w*\\b`, 'g');
   
   const wordsWithTargetSound = allWords.filter(word => word.match(pattern));
-  console.log(`Words with target sound "${normalizedTarget}":`, wordsWithTargetSound);
   
   // If we have a target phrase, check which expected words were correctly spoken
   let expectedWords: string[] = [];
   if (targetPhrase) {
     expectedWords = targetPhrase.toLowerCase().split(/\s+/).filter(word => word.match(pattern));
-    console.log(`Expected words with target sound "${normalizedTarget}" from target phrase:`, expectedWords);
     
     // If we don't find any of the expected words that should have the target sound
     if (expectedWords.length > 0 && !expectedWords.some(word => allWords.includes(word))) {
-      console.log(`None of the expected words with target sound were found in transcript`);
       return {
         accuracy: Math.min(40, phraseMatchScore), // Cap accuracy based on phrase match
         correctWords: [],
@@ -397,19 +384,15 @@ export function analyzeTargetSound(
     correctWords = wordsWithTargetSound.filter(word => !incorrectWords.includes(word));
   }
   
-  console.log(`Correct words for "${normalizedTarget}":`, correctWords);
-  console.log(`Incorrect words for "${normalizedTarget}":`, incorrectWords);
   
   // Calculate a more accurate percentage for 'l' sounds
   let accuracy = targetAnalysis.percentage;
   if (normalizedTarget === 'l' && wordsWithTargetSound.length > 0) {
     accuracy = Math.round((correctWords.length / wordsWithTargetSound.length) * 100);
-    console.log(`Recalculated accuracy for "l" sound: ${accuracy}%`);
     
     // Ensure we never give 100% for 'l' sounds unless we're certain
     if (accuracy === 100 && wordsWithTargetSound.length < 3) {
       accuracy = 90; // More conservative estimate with limited samples
-      console.log(`Adjusted accuracy to more conservative estimate: ${accuracy}%`);
     }
   }
   
@@ -417,7 +400,6 @@ export function analyzeTargetSound(
   if (targetPhrase) {
     // Weight the accuracy: 60% sound accuracy, 40% phrase match
     accuracy = Math.round((accuracy * 0.6) + (phraseMatchScore * 0.4));
-    console.log(`Final weighted accuracy (sound + phrase match): ${accuracy}%`);
   }
   
   // Generate focused suggestions

@@ -61,12 +61,10 @@ export default function DashboardPage() {
 
   const { user, loading: authLoading, signOut } = useAuth();
 
-  // Add this useEffect at the beginning of the component
+  // Component lifecycle tracking
   useEffect(() => {
-    console.log('🎯 Dashboard: Component mounted, user:', user?.id);
-    
     return () => {
-      console.log('🎯 Dashboard: Component unmounting');
+      // Component cleanup
     };
   }, []);
 
@@ -182,8 +180,6 @@ export default function DashboardPage() {
         
         // Fetch exercise history using our working MCP API endpoint
         try {
-          console.log('🚀 Dashboard: Fetching exercise history for user:', user.id);
-          
           // Use our working MCP API endpoint
           const mcpResponse = await fetch('/api/mcp/user-progress', {
             method: 'POST',
@@ -193,11 +189,8 @@ export default function DashboardPage() {
             body: JSON.stringify({ userId: user.id })
           });
 
-          console.log('📞 Dashboard: MCP API response status:', mcpResponse.status);
-
           if (mcpResponse.ok) {
             const mcpData = await mcpResponse.json();
-            console.log('✅ Dashboard: MCP API response:', mcpData);
             
             if (mcpData.success && mcpData.records && mcpData.records.length > 0) {
               // Sort by most recent first and take only the 5 most recent
@@ -205,18 +198,14 @@ export default function DashboardPage() {
                 new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
               );
               
-              console.log('✅ Dashboard: Setting exercise history with', sortedProgress.length, 'records');
               setExerciseHistory(sortedProgress.slice(0, 5)); // Get most recent 5
             } else {
-              console.log('ℹ️ Dashboard: No exercise records found');
               setExerciseHistory([]);
             }
           } else {
-            console.log('❌ Dashboard: MCP API failed with status:', mcpResponse.status);
             setExerciseHistory([]);
           }
         } catch (progressError) {
-          console.error('❌ Dashboard: Error fetching exercise history:', progressError);
           setExerciseHistory([]);
         }
         
@@ -262,8 +251,6 @@ export default function DashboardPage() {
         
         // Refresh exercise history too
         try {
-          console.log('🔄 Dashboard: Refreshing exercise history for user:', user.id);
-          
           // Use our working MCP API endpoint
           const mcpResponse = await fetch('/api/mcp/user-progress', {
             method: 'POST',
@@ -275,24 +262,19 @@ export default function DashboardPage() {
 
           if (mcpResponse.ok) {
             const mcpData = await mcpResponse.json();
-            console.log('✅ Dashboard: Refresh MCP API response:', mcpData);
             
             if (mcpData.success && mcpData.records && mcpData.records.length > 0) {
               const sortedProgress = [...mcpData.records].sort((a, b) => 
                 new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
               );
-              console.log('✅ Dashboard: Refreshed exercise history with', sortedProgress.length, 'records');
               setExerciseHistory(sortedProgress.slice(0, 5));
             } else {
-              console.log('ℹ️ Dashboard: No exercise records found during refresh');
               setExerciseHistory([]);
             }
           } else {
-            console.log('❌ Dashboard: Refresh MCP API failed with status:', mcpResponse.status);
             setExerciseHistory([]);
           }
         } catch (progressError) {
-          console.error('❌ Dashboard: Error refreshing exercise history:', progressError);
           setExerciseHistory([]);
         }
       }

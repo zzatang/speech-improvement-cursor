@@ -37,17 +37,15 @@ export default function SupabaseAuthProvider({ children }: { children: React.Rea
     // Get initial session
     const getInitialSession = async () => {
       try {
-        console.log('🔍 Getting initial session...')
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
-          console.error('❌ Error getting session:', error)
+          console.error('Error getting initial session:', error)
         } else {
-          console.log('✅ Initial session:', session ? 'Found' : 'Not found')
+          setSession(session)
+          setUser(session?.user ?? null)
         }
-        setSession(session)
-        setUser(session?.user ?? null)
       } catch (error) {
-        console.error('❌ Error in getInitialSession:', error)
+        console.error('Error in getInitialSession:', error)
       } finally {
         setLoading(false)
       }
@@ -58,14 +56,12 @@ export default function SupabaseAuthProvider({ children }: { children: React.Rea
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        console.log('🔄 Auth state change:', event, session ? 'Session found' : 'No session')
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
         
         // Redirect to login page when user signs out
         if (event === 'SIGNED_OUT') {
-          console.log('🔄 User signed out, redirecting to login...')
           router.push('/auth/login')
         }
       }
@@ -76,12 +72,10 @@ export default function SupabaseAuthProvider({ children }: { children: React.Rea
 
   const signOut = async () => {
     try {
-      console.log('🚪 Signing out...')
       const { error } = await supabase.auth.signOut()
       if (error) {
-        console.error('❌ Error signing out:', error)
+        console.error('Error signing out:', error)
       } else {
-        console.log('✅ Signed out successfully')
         // Clear local state immediately
         setSession(null)
         setUser(null)
@@ -89,7 +83,7 @@ export default function SupabaseAuthProvider({ children }: { children: React.Rea
         router.push('/auth/login')
       }
     } catch (error) {
-      console.error('❌ Error in signOut:', error)
+      console.error('Error in signOut:', error)
     }
   }
 

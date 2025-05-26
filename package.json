@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "lint:ci": "tsc --noEmit && eslint --max-warnings=0 .",
-    "typecheck": "tsc --noEmit"
+    "lint:fix": "eslint --fix .",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "rm -rf .next out node_modules/.cache",
+    "analyze": "ANALYZE=true npm run build"
   },
   "dependencies": {
     "@google-cloud/speech": "^7.0.1",

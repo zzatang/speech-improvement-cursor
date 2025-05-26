@@ -11,7 +11,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('[MCP API] Fetching user progress for:', userId);
 
     // For the specific user we know has data, return it directly
     // This bypasses RLS issues while we work on the proper solution
@@ -28,7 +27,6 @@ export async function POST(request: NextRequest) {
         "feedback": "Accuracy: 100%. Transcript: \"Look at the little lake.\""
       }];
 
-      console.log('[MCP API] Returning user data for:', userId);
       
       return NextResponse.json({
         success: true,
@@ -49,7 +47,6 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('[MCP API] Unhandled error:', error);
     
     return NextResponse.json({
       success: false,

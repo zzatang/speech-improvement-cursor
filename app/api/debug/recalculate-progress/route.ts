@@ -9,18 +9,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    console.log(`[DEBUG API] Recalculating progress for user ${userId}...`);
     
     // Get the current user profile
     const { data: beforeProfile } = await getUserProfile(userId);
-    console.log(`[DEBUG API] Before recalculation: progress=${beforeProfile?.overall_progress}, streak=${beforeProfile?.streak_count}`);
     
     // Update the user profile which recalculates the overall progress
     const result = await updateUserProfile(userId);
     
     // Get the updated user profile
     const { data: afterProfile } = await getUserProfile(userId);
-    console.log(`[DEBUG API] After recalculation: progress=${afterProfile?.overall_progress}, streak=${afterProfile?.streak_count}`);
     
     return NextResponse.json({
       success: true,
@@ -35,7 +32,6 @@ export async function POST(request: Request) {
       }
     });
   } catch (error) {
-    console.error('[DEBUG API] Error recalculating progress:', error);
     return NextResponse.json({ error: 'Failed to recalculate progress' }, { status: 500 });
   }
 } 

@@ -54,20 +54,17 @@ export async function updateSettings(supabaseClient: any, newSettings: Partial<A
       .select('id')
       .limit(1)
       .single();
-    console.log('Fetched existing row:', existing);
     
     if (fetchError) throw fetchError;
     if (!existing?.id) throw new Error('No settings row found');
     
     const updatePayload = { ...mapSettingsToSupabase(newSettings), updated_at: new Date().toISOString() };
-    console.log('Updating settings row:', updatePayload);
     
     const { data: updateResult, error } = await supabaseClient
       .from('app_settings')
       .update(updatePayload)
       .eq('id', existing.id)
       .select();
-    console.log('Update result:', updateResult);
     
     if (error) throw error;
     return { data: null, error: null };

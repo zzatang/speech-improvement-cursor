@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { transcribeSpeech } from '@/lib/google/speech-to-text';
+import { ApiErrorHandler } from '@/lib/api/error-handler';
+import type { SpeechRecognitionResponse, ApiError } from '@/types/api';
 
 /**
  * API endpoint for speech recognition
  * Accepts audio data and returns transcription with analysis
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse<SpeechRecognitionResponse | ApiError>> {
   try {
     // Check authentication
     const { userId } = await auth();
     if (!userId) {
-      return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+      return ApiErrorHandler.createUnauthorizedError();
     }
 
     // Get form data
@@ -22,10 +24,8 @@ export async function POST(request: NextRequest) {
 
     // Validate request
     if (!audioBlob) {
-      return new NextResponse(JSON.stringify({ error: 'Audio data is required' }), { status: 400 });
+      return ApiErrorHandler.createValidationError('Audio data is required');
     }
-
-    console.log(`Recognize API: Processing audio with target text: "${targetText || 'none'}"`);
 
     // Convert Blob to Buffer
     const audioBytes = Buffer.from(await audioBlob.arrayBuffer());
@@ -41,8 +41,6 @@ export async function POST(request: NextRequest) {
 
     // Check for errors
     if (sttResponse.error) {
-      console.error('Speech recognition error:', sttResponse.error);
-      
       // Special handling for "No speech detected" - return as a valid response
       if (sttResponse.error === 'No speech detected') {
         return NextResponse.json({
@@ -53,9 +51,10 @@ export async function POST(request: NextRequest) {
       }
       
       // For other errors, return error response
-      return new NextResponse(
-        JSON.stringify({ error: 'Failed to process speech', details: sttResponse.error }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      return ApiErrorHandler.createErrorResponse(
+        'Failed to process speech',
+        sttResponse.error,
+        500
       );
     }
 
@@ -63,13 +62,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(sttResponse);
 
   } catch (error) {
-    console.error('Speech recognition API error:', error);
-    return new NextResponse(
-      JSON.stringify({ 
-        error: 'Error analyzing speech',
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return ApiErrorHandler.handleUnknownError(error);
   }
 } 

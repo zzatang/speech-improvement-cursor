@@ -10,7 +10,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'userId parameter required' }, { status: 400 });
     }
     
-    console.log('Debug: Checking profile for user:', userId);
     
     // Check if user_profiles table exists
     const { data: tables, error: tableError } = await supabase
@@ -19,7 +18,6 @@ export async function GET(request: NextRequest) {
       .eq('table_schema', 'public')
       .eq('table_name', 'user_profiles');
     
-    console.log('Tables check:', { tables, tableError });
     
     // Try to get user profile
     const { data: profile, error: profileError } = await supabase
@@ -28,7 +26,6 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .maybeSingle();
     
-    console.log('Profile check:', { profile, profileError });
     
     // Try to get user progress
     const { data: progress, error: progressError } = await supabase
@@ -37,7 +34,6 @@ export async function GET(request: NextRequest) {
       .eq('user_id', userId)
       .limit(5);
     
-    console.log('Progress check:', { progress, progressError });
     
     return NextResponse.json({
       userId,
@@ -51,7 +47,6 @@ export async function GET(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('Debug API error:', error);
     return NextResponse.json({
       error: 'Debug API failed',
       details: error instanceof Error ? error.message : 'Unknown error'

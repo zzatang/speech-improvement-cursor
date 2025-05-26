@@ -31,48 +31,37 @@ export default function ProfileTestPage() {
   // Use this approach to directly fetch from database using a public API endpoint
   const fetchExerciseHistory = async (userId: string) => {
     try {
-      console.log("Fetching exercise history for", userId);
 
       // First try using our new MCP direct API endpoint
       try {
-        console.log("Trying MCP direct-data API endpoint...");
         const mcpResponse = await fetch(`/api/direct-data/user-progress-mcp?userId=${encodeURIComponent(userId)}`);
         
         if (mcpResponse.ok) {
           const mcpData = await mcpResponse.json();
           
           if (mcpData.success && mcpData.records && mcpData.records.length > 0) {
-            console.log(`MCP Direct API returned ${mcpData.records.length} records via ${mcpData.method}`);
             return mcpData.records;
           } else {
-            console.log("MCP Direct API returned no records or was unsuccessful");
           }
         } else {
-          console.error(`MCP Direct API failed with status ${mcpResponse.status}`);
         }
       } catch (mcpError) {
-        console.error("Error using MCP direct data API:", mcpError);
       }
 
       // Next try using our direct data API that uses hardcoded data (this should bypass RLS)
       try {
-        console.log("Trying direct-data API endpoint...");
         const directResponse = await fetch(`/api/direct-data/user-progress?userId=${encodeURIComponent(userId)}`);
         
         if (directResponse.ok) {
           const directData = await directResponse.json();
           
           if (directData.success && directData.records && directData.records.length > 0) {
-            console.log(`Direct API returned ${directData.records.length} records via ${directData.method}`);
             return directData.records;
           } else {
-            console.log("Direct API returned no records or was unsuccessful");
           }
         } else {
-          console.error(`Direct API failed with status ${directResponse.status}`);
         }
       } catch (directError) {
-        console.error("Error using direct data API:", directError);
       }
 
       // Next try using our main API endpoint
@@ -80,10 +69,8 @@ export default function ProfileTestPage() {
       const data = await response.json();
 
       if (data.success && data.records && data.records.length > 0) {
-        console.log(`API returned ${data.records.length} records via ${data.method}`);
         return data.records;
       } else {
-        console.log("API returned no records or was unsuccessful");
         
         // We can also directly query the database through MCP
         // This is a simpler direct approach that has no authentication requirements
@@ -127,7 +114,6 @@ export default function ProfileTestPage() {
         return hardcodedRecords;
       }
     } catch (error) {
-      console.error("Error fetching exercise history:", error);
       throw error;
     }
   };
@@ -196,7 +182,6 @@ export default function ProfileTestPage() {
         setExerciseHistory(sortedHistory);
       } catch (err) {
         setError("Failed to load exercise history. Please try again later.");
-        console.error("Error loading exercise history:", err);
       } finally {
         setLoading(false);
       }
@@ -220,7 +205,6 @@ export default function ProfileTestPage() {
       setExerciseHistory(sortedHistory);
     } catch (err) {
       setError("Failed to refresh exercise history. Please try again later.");
-      console.error("Error refreshing exercise history:", err);
     } finally {
       setLoading(false);
     }

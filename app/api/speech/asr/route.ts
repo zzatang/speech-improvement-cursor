@@ -46,7 +46,6 @@ export async function POST(request: NextRequest) {
 
     // Check for errors returned by transcribeSpeech
     if (sttResponse.error) {
-      console.error('ASR Error from transcribeSpeech:', sttResponse.error);
       return new NextResponse(
         JSON.stringify({ error: 'Failed to process speech', details: sttResponse.error }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -57,9 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(sttResponse);
 
   } catch (error) {
-    console.error('ASR API Route Error:', error);
     const errorDetails = error instanceof Error ? error.message + (error.stack ? `\n${error.stack}` : '') : 'Unknown error';
-    console.error('ASR Route Error Details:', errorDetails);
     return new NextResponse(
       JSON.stringify({ error: 'Failed to process speech request', details: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -91,7 +88,6 @@ export async function GET() {
       max_duration_seconds: 60
     });
   } catch (error) {
-    console.error('ASR Info API Error:', error);
     return NextResponse.json(
       { error: 'Failed to retrieve ASR service information' },
       { status: 500 }

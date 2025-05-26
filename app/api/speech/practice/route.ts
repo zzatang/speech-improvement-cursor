@@ -28,7 +28,6 @@ export async function POST(request: Request) {
       );
     }
     
-    console.log(`API: Received request for sound: "${sound}", difficulty: ${difficulty}, customText: ${customText ? 'provided' : 'not provided'}, returnText: ${returnText ? 'true' : 'false'}`);
     
     // Generate speech - either from a custom text or using the practice generator
     let response;
@@ -37,7 +36,6 @@ export async function POST(request: Request) {
     if (customText) {
       // Format the custom text for better pronunciation
       const formattedText = formatForTTS(customText);
-      console.log(`API: Using custom text: "${customText}"`);
       textToReturn = customText;
       response = await synthesizeSpeech({
         text: formattedText,
@@ -46,7 +44,6 @@ export async function POST(request: Request) {
       });
     } else {
       // Use the practice generator with specified sound and difficulty
-      console.log(`API: Using practice generator for sound: "${sound}", difficulty: ${difficulty}`);
       
       // Generate phrase and capture the generated text
       const { audioContent, generatedText, error } = await generatePracticeSpeech(sound, difficulty);
@@ -55,7 +52,6 @@ export async function POST(request: Request) {
     }
     
     if (!response.audioContent) {
-      console.error(`API: Failed to generate speech: ${response.error}`);
       return new NextResponse(
         JSON.stringify({ 
           error: 'Failed to generate speech',
@@ -65,7 +61,6 @@ export async function POST(request: Request) {
       );
     }
     
-    console.log(`API: Successfully generated speech audio${textToReturn ? ` for text: "${textToReturn}"` : ''}`);
     
     // If returnText is true, return the text along with a success message
     if (returnText && textToReturn) {
@@ -91,7 +86,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error('Speech Practice API Error:', error);
     return new NextResponse(
       JSON.stringify({ 
         error: 'Failed to generate practice speech',
@@ -131,7 +125,6 @@ export async function GET() {
       ]
     });
   } catch (error) {
-    console.error('Speech Practice Options API Error:', error);
     return new NextResponse(
       JSON.stringify({ error: 'Failed to retrieve practice options' }),
       { status: 500 }

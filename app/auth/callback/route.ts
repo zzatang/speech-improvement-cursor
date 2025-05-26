@@ -10,11 +10,9 @@ export async function GET(request: NextRequest) {
   // if "next" is in param, use it as the redirect URL
   const next = searchParams.get('next') ?? '/dashboard'
 
-  console.log('Auth callback received:', { code: !!code, error, errorDescription })
 
   // If there's an OAuth error, redirect to error page
   if (error) {
-    console.error('OAuth error:', error, errorDescription)
     return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${encodeURIComponent(error)}`)
   }
 
@@ -42,21 +40,17 @@ export async function GET(request: NextRequest) {
       const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
       
       if (exchangeError) {
-        console.error('Session exchange error:', exchangeError)
         return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${encodeURIComponent(exchangeError.message)}`)
       }
 
       if (data.session) {
-        console.log('Session created successfully for user:', data.user?.email)
         return NextResponse.redirect(`${origin}${next}`)
       }
     } catch (err) {
-      console.error('Unexpected error in auth callback:', err)
       return NextResponse.redirect(`${origin}/auth/auth-code-error?error=unexpected_error`)
     }
   }
 
   // No code parameter - this might be a direct access to the callback URL
-  console.log('No code parameter found in callback')
   return NextResponse.redirect(`${origin}/auth/login?message=Please sign in to continue`)
 } 

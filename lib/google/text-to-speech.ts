@@ -98,7 +98,6 @@ export async function synthesizeSpeech(options: TTSRequest): Promise<TTSResponse
     
     return { audioContent };
   } catch (error) {
-    console.error('Error synthesizing speech:', error);
     return {
       audioContent: null,
       error: error instanceof Error ? error.message : 'Unknown error during speech synthesis'
@@ -122,7 +121,6 @@ export async function getAvailableVoices(languageCode?: string): Promise<any[]> 
     
     return result.voices || [];
   } catch (error) {
-    console.error('Error listing TTS voices:', error);
     return [];
   }
 }
@@ -190,11 +188,9 @@ export async function generatePracticeSpeech(sound: string, difficulty: number =
   
   // Ensure sound parameter is valid and non-empty
   const soundKey = sound ? sound.toLowerCase() : '';
-  console.log(`generatePracticeSpeech called with sound: "${soundKey}", difficulty: ${difficulty}`);
   
   // Check if sound exists in our phrases dictionary
   if (!soundKey || !Object.keys(phrases).includes(soundKey)) {
-    console.warn(`Invalid sound type "${soundKey}" requested. Defaulting to "r" sound.`);
     // Default to 'r' sound if the requested sound isn't available
     const defaultPhrase = phrases['r'][0][0]; // Use first easy 'r' phrase
     return synthesizeSpeech({
@@ -213,8 +209,6 @@ export async function generatePracticeSpeech(sound: string, difficulty: number =
   // Select a random phrase from the appropriate category
   const options = phrases[soundKey][level];
   const selectedPhrase = options[Math.floor(Math.random() * options.length)];
-  
-  console.log(`Selected "${soundKey}" phrase: "${selectedPhrase}" (difficulty level: ${level + 1})`);
   
   // Use the text without SSML markup
   const formattedText = formatForTTS(selectedPhrase);

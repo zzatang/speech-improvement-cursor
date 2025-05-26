@@ -26,7 +26,6 @@ export async function GET() {
     const { error: healthError } = await testClient.auth.getSession();
     
     if (healthError) {
-      console.error('Supabase connection failed:', healthError);
       return NextResponse.json({
         success: false,
         error: healthError.message || 'Connection failed',
@@ -49,7 +48,6 @@ export async function GET() {
     });
     
   } catch (error) {
-    console.error('Error testing Supabase connection:', error);
     
     return NextResponse.json({ 
       success: false, 
@@ -98,7 +96,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
     
   } catch (error) {
-    console.error('Error testing Supabase connection:', error);
     
     return NextResponse.json({ 
       success: false, 

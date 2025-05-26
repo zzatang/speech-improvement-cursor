@@ -41,7 +41,6 @@ export async function GET() {
     });
     
   } catch (error) {
-    console.error('Error checking table structure:', error);
     return NextResponse.json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error'

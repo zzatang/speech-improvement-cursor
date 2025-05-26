@@ -131,14 +131,11 @@ export default function RepeatAfterMePage() {
     async function fetchExercises() {
       try {
         setIsLoadingExercises(true);
-        console.log("Fetching repeat exercises...");
         
         // Fetch repeat-type exercises from Supabase
         const exercises = await getExercisesByType('repeat');
-        console.log("Repeat exercises result:", exercises);
         
         if (exercises && exercises.data && Array.isArray(exercises.data) && exercises.data.length > 0) {
-          console.log(`Found ${exercises.data.length} repeat exercises`);
           
           // Convert Supabase exercises to the format used by this component
           const formattedExercises: PracticePhrase[] = exercises.data.map(exercise => {
@@ -163,17 +160,13 @@ export default function RepeatAfterMePage() {
           });
           
           if (formattedExercises.length > 0) {
-            console.log("Setting formatted exercises:", formattedExercises);
             setPracticePhrases(formattedExercises);
           } else {
-            console.warn("No formatted exercises found, using fallback data");
             // Keep default phrases as fallback
           }
         } else {
-          console.warn("No exercises found in database or error occured, using fallback data");
           // Check if we're using mock client
           if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-            console.warn("Using sample data because Supabase credentials are missing");
           }
           
           // Provide some sample data for local development or when DB connection fails
@@ -213,7 +206,6 @@ export default function RepeatAfterMePage() {
           setPracticePhrases(sampleExercises);
         }
       } catch (error) {
-        console.error("Error loading exercises from Supabase:", error);
         // Use the default phrases in case of error
       } finally {
         setIsLoadingExercises(false);
@@ -452,7 +444,6 @@ export default function RepeatAfterMePage() {
   
   // Function to start recording
   const startRecording = async () => {
-    console.log('[Repeat] startRecording called');
     try {
       // Request audio with a specific sample rate
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -463,30 +454,29 @@ export default function RepeatAfterMePage() {
           noiseSuppression: true
         }
       });
-      console.log('[Repeat] Microphone stream acquired', stream);
+      
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
         audioBitsPerSecond: 128000
       });
+      
       audioChunksRef.current = [];
+      
       mediaRecorderRef.current.ondataavailable = (event) => {
-        console.log('[Repeat] ondataavailable', event);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
-          console.log('[Repeat] audioChunksRef.current length:', audioChunksRef.current.length);
         }
       };
+      
       mediaRecorderRef.current.onstop = () => {
-        console.log('[Repeat] onstop called');
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-        console.log('[Repeat] audioBlob size:', audioBlob.size);
         setAudioBlob(audioBlob);
         setRecordingComplete(true);
         analyzeRecording(audioBlob);
       };
+      
       mediaRecorderRef.current.start();
       setIsRecording(true);
-      console.log('[Repeat] MediaRecorder started');
       
       // Progress animation
       setProgress(0);
@@ -508,7 +498,7 @@ export default function RepeatAfterMePage() {
         }
       }, 5000);
     } catch (error) {
-      console.error('[Repeat] Error in startRecording', error);
+      // Error handling for recording
     }
   };
   
@@ -525,7 +515,6 @@ export default function RepeatAfterMePage() {
   
   // Function to analyze the recorded audio
   const analyzeRecording = async (audioBlob: Blob) => {
-    console.log('[Repeat] analyzeRecording called, blob size:', audioBlob.size);
     try {
       setLoadingAnalysis(true);
       setFeedback(null);

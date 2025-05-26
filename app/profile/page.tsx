@@ -42,11 +42,9 @@ export default function ProfilePage() {
   // Add a function to fetch user progress from our API endpoint
   const fetchUserProgressFromAPI = async (userId: string) => {
     try {
-      console.log('🚀 Fetching user progress for:', userId);
       
       // Use the MCP API endpoint that bypasses RLS
       try {
-        console.log('📞 Calling MCP API endpoint...');
         
         const mcpResponse = await fetch('/api/mcp/user-progress', {
           method: 'POST',
@@ -56,18 +54,11 @@ export default function ProfilePage() {
           body: JSON.stringify({ userId })
         });
 
-        console.log('📞 MCP API response status:', mcpResponse.status);
-        console.log('📞 MCP API response ok:', mcpResponse.ok);
 
         if (mcpResponse.ok) {
           const mcpData = await mcpResponse.json();
-          console.log('✅ MCP API response data:', mcpData);
-          console.log('✅ MCP API success:', mcpData.success);
-          console.log('✅ MCP API records:', mcpData.records);
-          console.log('✅ MCP API records length:', mcpData.records?.length);
           
           if (mcpData.success && mcpData.records) {
-            console.log('🎉 Returning MCP data with', mcpData.records.length, 'records');
             return {
               success: true,
               records: mcpData.records,
@@ -75,19 +66,14 @@ export default function ProfilePage() {
               method: mcpData.method
             };
           } else {
-            console.log('⚠️ MCP API returned success=false or no records');
           }
         } else {
-          console.log('❌ MCP API failed with status:', mcpResponse.status);
           const errorText = await mcpResponse.text();
-          console.log('❌ MCP API error response:', errorText);
         }
       } catch (mcpError) {
-        console.log('❌ MCP API error:', mcpError);
       }
 
       // Fallback: return empty result
-      console.log('ℹ️ No data found via any method, returning empty');
       return {
         success: true,
         records: [],
@@ -96,7 +82,6 @@ export default function ProfilePage() {
       };
       
     } catch (error) {
-      console.error('❌ Error fetching user progress:', error);
       return { 
         success: false,
         records: [], 
@@ -131,16 +116,13 @@ export default function ProfilePage() {
         try {
           // Try with authenticated client first
           profileData = await getUserProfile(userIdToUse);
-          console.log('Profile data result:', profileData);
           
           // If we got an error but it's just "no rows", that's okay - we'll create a profile
           if (profileData && profileData.error && profileData.error.message && 
               profileData.error.message.includes("no rows")) {
-            console.log('No existing profile found, will create one');
             profileData = { data: null, error: null };
           }
         } catch (userProfileError) {
-          console.error('Error fetching user profile:', userProfileError);
           // Continue without profile data - we'll create a default one
           profileData = { data: null, error: null };
         }
@@ -157,12 +139,10 @@ export default function ProfilePage() {
           try {
             await updateUserProfile(userIdToUse);
           } catch (updateError) {
-            console.warn('Error updating user profile:', updateError);
             // Continue without updating
           }
         } else {
           // No profile data, creating default
-          console.log('No profile found, creating default profile');
           
           // Create a default profile for this user
           const newProfile = {
@@ -175,11 +155,9 @@ export default function ProfilePage() {
           
           try {
             const upsertResult = await upsertUserProfile(newProfile);
-            console.log('Upsert result:', upsertResult);
             setProfile(upsertResult.data || newProfile);
             setUsername(newProfile.display_name);
           } catch (upsertError) {
-            console.warn('Error creating profile, using default:', upsertError);
             setProfile(newProfile);
             setUsername(newProfile.display_name);
           }
@@ -187,31 +165,21 @@ export default function ProfilePage() {
         
         // This will try multiple endpoints to get the most complete data
         const exerciseData = await fetchUserProgressFromAPI(userIdToUse);
-        console.log('🔍 Exercise data result:', exerciseData);
-        console.log('🔍 Exercise data type:', typeof exerciseData);
-        console.log('🔍 Exercise data records:', exerciseData?.records);
-        console.log('🔍 Exercise data count:', exerciseData?.count);
         
         if (exerciseData && exerciseData.records && exerciseData.records.length > 0) {
           // Successfully retrieved exercise records
-          console.log(`✅ Found ${exerciseData.records.length} exercise records via ${exerciseData.method}`);
           
           // Sort by most recent first
           const sortedProgress = [...exerciseData.records].sort((a, b) => 
             new Date(b.completed_at || 0).getTime() - new Date(a.completed_at || 0).getTime()
           );
           
-          console.log('✅ Sorted progress:', sortedProgress);
           
           setExerciseHistory(sortedProgress);
           setDataFetchMethod(exerciseData.method || 'default');
           setIsDataLoaded(true);
         } else {
           // No exercise data found, creating sample data for demo
-          console.log('❌ No exercise data found, using fallback');
-          console.log('❌ exerciseData:', exerciseData);
-          console.log('❌ exerciseData.records:', exerciseData?.records);
-          console.log('❌ exerciseData.records.length:', exerciseData?.records?.length);
           
           // If in demo mode, load some sample progress data
           if (!user || isDemoMode) {
@@ -220,7 +188,6 @@ export default function ProfilePage() {
               setExerciseHistory(sampleData.records || []);
               setDataFetchMethod('sample');
             } catch (sampleError) {
-              console.warn('Could not load sample data:', sampleError);
               setExerciseHistory([]);
               setDataFetchMethod('empty');
             }
@@ -252,7 +219,6 @@ export default function ProfilePage() {
           }
         }
       } catch (err) {
-        console.error('Error in fetchUserData:', err);
         // Set a more specific error message based on the error type
         if (err instanceof Error) {
           if (err.message.includes('fetch')) {

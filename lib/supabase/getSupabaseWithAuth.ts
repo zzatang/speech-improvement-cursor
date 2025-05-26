@@ -7,9 +7,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export async function getSupabaseWithAuth(getToken: () => Promise<string | null>) {
   const token = await getToken();
   
-  // Add this log to verify the token
-  console.log("Got token for Supabase:", token ? "Token received" : "No token");
-  
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {

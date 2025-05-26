@@ -31,9 +31,7 @@ export async function POST(req: Request) {
     if (!sig || !webhookSecret)
       return new Response('Webhook secret not found.', { status: 400 });
     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-    console.log(`🔔  Webhook received: ${event.type}`);
   } catch (err: any) {
-    console.log(`❌ Error message: ${err.message}`);
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
 
@@ -76,10 +74,8 @@ export async function POST(req: Request) {
           }
           break;
         default:
-          console.log(`Unhandled event type ${event.type}`);
       }
     } catch (error) {
-      console.log(error);
       return new Response(
         'Webhook handler failed. View your Next.js function logs.',
         {

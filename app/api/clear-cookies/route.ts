@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
     
     return response;
   } catch (error) {
-    console.error('Error clearing cookies:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to clear cookies' },
       { status: 500 }

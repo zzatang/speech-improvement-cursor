@@ -15,7 +15,6 @@ const getSupabaseKey = () => {
 
 // Create a mock Supabase client that returns empty data for development/build environments
 const createMockSupabaseClient = () => {
-  console.warn('Using mock Supabase client because API keys are missing');
   // Chainable query builder mock
   const mockResult = { data: [], error: null };
   const builder = {
@@ -50,11 +49,6 @@ const createMockSupabaseClient = () => {
 const createSupabaseClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  console.log('Creating Supabase client with:', {
-    url: supabaseUrl ? 'Present' : 'Missing',
-    key: supabaseKey ? 'Present' : 'Missing'
-  });
   
   if (!supabaseUrl || !supabaseKey) {
     return createMockSupabaseClient();

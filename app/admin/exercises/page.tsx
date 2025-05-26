@@ -105,7 +105,6 @@ export default function ExercisesAdminPage() {
         
         return result;
       } catch (err) {
-        console.error('Error fetching exercises:', err);
         throw err;
       }
     },
@@ -158,7 +157,6 @@ export default function ExercisesAdminPage() {
       try {
         setContentText(JSON.stringify(currentExercise.content, null, 2));
       } catch (err) {
-        console.error('Error stringifying content:', err);
         setContentText('{}');
       }
     } else {
@@ -208,7 +206,6 @@ export default function ExercisesAdminPage() {
       setSelectedExercise(null);
     },
     onError: (err: any) => {
-      console.error("Error saving exercise:", err);
       
       // Give more specific guidance if it's likely a JWT template issue
       if (err.message && (

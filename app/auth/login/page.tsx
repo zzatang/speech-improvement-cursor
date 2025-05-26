@@ -39,23 +39,17 @@ export default function LoginPage() {
     setError('')
 
     try {
-      console.log('🔐 Attempting login with email:', email)
       const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-
-      console.log('🔐 Login response:', { error, data })
-
+      
       if (error) {
-        console.error('❌ Login error:', error)
         setError(error.message)
       } else {
-        console.log('✅ Login successful, redirecting to dashboard')
         router.push('/dashboard')
       }
     } catch (err) {
-      console.error('❌ Unexpected login error:', err)
       setError('An unexpected error occurred')
     }
 
@@ -76,7 +70,6 @@ export default function LoginPage() {
       }
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Google login error:', err)
     }
   }
 

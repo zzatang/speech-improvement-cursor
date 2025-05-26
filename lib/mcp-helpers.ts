@@ -28,7 +28,6 @@ export async function mcp_supabase_query(sql: string): Promise<any> {
     .order('completed_at', { ascending: false });
 
   if (error) {
-    console.error('Supabase query error:', error);
     return [];
   }
 

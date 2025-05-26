@@ -177,14 +177,11 @@ export default function ReadingPracticePage() {
     async function fetchExercises() {
       try {
         setIsLoadingExercises(true);
-        console.log("Fetching reading exercises...");
         
         // Fetch reading-type exercises from Supabase
         const exercises = await getExercisesByType('reading');
-        console.log("Reading exercises result:", exercises);
         
         if (exercises && exercises.data && Array.isArray(exercises.data) && exercises.data.length > 0) {
-          console.log(`Found ${exercises.data.length} reading exercises`);
           
           // Convert Supabase exercises to the format used by this component
           const formattedExercises: ReadingText[] = exercises.data.map(exercise => {
@@ -207,17 +204,13 @@ export default function ReadingPracticePage() {
           });
           
           if (formattedExercises.length > 0) {
-            console.log("Setting formatted reading exercises:", formattedExercises);
             setReadingTexts(formattedExercises);
           } else {
-            console.warn("No formatted reading exercises found, using fallback data");
             // Keep default texts as fallback
           }
         } else {
-          console.warn("No reading exercises found in database or error occurred, using fallback data");
           // Check if we're using mock client
           if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-            console.warn("Using sample data because Supabase credentials are missing");
           }
           
           // Provide some sample data for local development or when DB connection fails
@@ -267,7 +260,6 @@ export default function ReadingPracticePage() {
           setReadingTexts(sampleTexts);
         }
       } catch (error) {
-        console.error("Error loading reading exercises from Supabase:", error);
         // Use the default texts in case of error
       } finally {
         setIsLoadingExercises(false);
@@ -279,7 +271,6 @@ export default function ReadingPracticePage() {
   
   // Function to start recording (copied and adapted from repeat/page.tsx)
   const startRecording = async () => {
-    console.log('[Reading] startRecording called');
     try {
       // Request audio with a specific sample rate
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -290,30 +281,24 @@ export default function ReadingPracticePage() {
           noiseSuppression: true
         }
       });
-      console.log('[Reading] Microphone stream acquired', stream);
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus',
         audioBitsPerSecond: 128000
       });
       audioChunksRef.current = [];
       mediaRecorderRef.current.ondataavailable = (event) => {
-        console.log('[Reading] ondataavailable', event);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
-          console.log('[Reading] audioChunksRef.current length:', audioChunksRef.current.length);
         }
       };
       mediaRecorderRef.current.onstop = () => {
-        console.log('[Reading] onstop called');
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
-        console.log('[Reading] audioBlob size:', audioBlob.size);
         setRecordingComplete(true);
         analyzeRecording(audioBlob);
       };
       mediaRecorderRef.current.start();
       setIsRecording(true);
       setProgress(0);
-      console.log('[Reading] MediaRecorder started');
       // Progress animation
       const interval = setInterval(() => {
         setProgress(prev => {
@@ -332,13 +317,11 @@ export default function ReadingPracticePage() {
         }
       }, 5000);
     } catch (error) {
-      console.error('[Reading] Error in startRecording', error);
     }
   };
 
   // Function to stop recording (copied and adapted from repeat/page.tsx)
   const stopRecording = () => {
-    console.log('[Reading] stopRecording called');
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -348,7 +331,6 @@ export default function ReadingPracticePage() {
   };
   
   const analyzeRecording = async (blob: Blob) => {
-    console.log('[Reading] analyzeRecording called, blob size:', blob.size);
     try {
       setFeedback({
         message: "Analyzing your reading...",
@@ -528,7 +510,6 @@ export default function ReadingPracticePage() {
         // Optionally update user profile and streak using authenticated client as well
         // ...
       } catch (saveError) {
-        console.error('Failed to save reading progress:', saveError);
         // Do not clear feedback here
       }
     } catch (error) {

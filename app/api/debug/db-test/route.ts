@@ -48,7 +48,6 @@ export async function GET() {
       }
     });
   } catch (error) {
-    console.error('Debug API error:', error);
     return NextResponse.json({ error: 'Debug API error', details: error }, { status: 500 });
   }
 } 

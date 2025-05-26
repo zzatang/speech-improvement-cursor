@@ -96,20 +96,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isProtectedRoute) {
-    console.log('🔒 Checking protected route:', pathname)
-    
     const { data: { user }, error } = await supabase.auth.getUser()
-    
-    console.log('👤 User from middleware:', user ? 'Found' : 'Not found')
-    console.log('❌ Auth error:', error)
-    console.log('🍪 Request cookies:', request.cookies.getAll().map(c => c.name))
 
     if (!user) {
-      console.log('🚫 No user found, redirecting to login')
       return NextResponse.redirect(new URL('/auth/login?message=Please sign in to continue', request.url))
     }
-    
-    console.log('✅ User authenticated, allowing access')
   }
 
   return response

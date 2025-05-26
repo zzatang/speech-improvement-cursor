@@ -83,14 +83,10 @@ export function logEnvironmentStatus(): void {
   const result = checkEnvironmentVariables();
   
   if (result.isValid) {
-    console.log('✅ All environment variables are properly configured');
   } else {
-    console.error('❌ Environment configuration issues detected:');
-    result.messages.forEach(msg => console.error(`  - ${msg}`));
+    // Environment validation failed - errors are tracked in result.messages
     
     // Provide helpful resources
-    console.error('\nPlease check the deployment documentation:');
-    console.error('- documentation/vercel-deployment-guide.md');
   }
 }
 

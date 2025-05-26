@@ -23,13 +23,11 @@ try {
   }
 } catch (error) {
   // Missing environment variables for service role client
-  console.warn('Failed to create service role client:', error);
 }
 
 export async function GET(request: NextRequest) {
   // If we don't have the required environment variables, return mock data
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Missing required Supabase environment variables. Returning mock data.');
     return NextResponse.json({ 
       success: true, 
       records: [],

@@ -30,9 +30,6 @@ if (!fs.existsSync(config.outputDir)) {
 }
 
 async function testTTSEndpoint() {
-  console.log('Testing TTS endpoint...');
-  console.log(`Sending request to: ${config.apiUrl}`);
-  console.log(`Test text: "${config.testText}"`);
   
   try {
     // Send request to TTS endpoint
@@ -51,9 +48,7 @@ async function testTTSEndpoint() {
     }
     
     // Log response headers
-    console.log('\nResponse headers:');
     response.headers.forEach((value, name) => {
-      console.log(`${name}: ${value}`);
     });
     
     // Get audio content as buffer
@@ -63,13 +58,9 @@ async function testTTSEndpoint() {
     const outputPath = path.join(config.outputDir, config.outputFileName);
     fs.writeFileSync(outputPath, audioBuffer);
     
-    console.log(`\nSuccess! Audio saved to: ${outputPath}`);
-    console.log(`File size: ${audioBuffer.length} bytes`);
-    console.log('\nTest completed successfully.');
     
     return true;
   } catch (error) {
-    console.error('\nTest failed:', error.message);
     return false;
   }
 }

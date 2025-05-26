@@ -62,7 +62,6 @@ export default function SignUpPage() {
       }
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Sign up error:', err)
     }
 
     setLoading(false)
@@ -82,7 +81,6 @@ export default function SignUpPage() {
       }
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Google sign up error:', err)
     }
   }
 

@@ -80,11 +80,13 @@ export default function AdminSettingsPage() {
     }
   }, [settings, reset]);
 
+  // Track success state to show success indicator
+  const [showSuccess, setShowSuccess] = useState(false);
+
   // Save settings mutation
   const { mutate: saveSettings, isPending: isSaving } = useMutation({
     mutationFn: async (values: GeneralSettingsFormValues) => {
       // Use regular supabase client since we're using Supabase Auth
-      console.log("Using Supabase Auth client");
       const supabaseClient = supabase;
       return updateSettings(supabaseClient, values);
     },
@@ -110,11 +112,7 @@ export default function AdminSettingsPage() {
     },
   });
 
-  // Track success state to show success indicator
-  const [showSuccess, setShowSuccess] = useState(false);
-
   const onSubmit = (values: GeneralSettingsFormValues) => {
-    console.log('Submitting values:', values);
     saveSettings(values);
   };
 

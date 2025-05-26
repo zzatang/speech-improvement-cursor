@@ -13,14 +13,12 @@ export async function GET(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
-      console.log('[MCP Direct API] Authentication failed:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     const { searchParams } = new URL(request.url);
     const targetUserId = searchParams.get('userId') || user.id;
     
-    console.log(`[MCP Direct API] Attempting to fetch progress for user ${targetUserId}`);
     
     // Use the MCP Supabase query tool by importing it from another file
     // that has direct access to the feature
@@ -33,7 +31,6 @@ export async function GET(request: Request) {
       // The result should be an array of records
       const records = result || [];
       
-      console.log(`[MCP Direct API] Successfully fetched ${records.length} records`);
       
       return NextResponse.json({
         success: true,
@@ -43,7 +40,6 @@ export async function GET(request: Request) {
         method: 'mcp_direct_query'
       });
     } catch (error) {
-      console.error('[MCP Direct API] Error using MCP query:', error);
       
       // If the MCP query fails, return an error response
       return NextResponse.json({
@@ -53,7 +49,6 @@ export async function GET(request: Request) {
       }, { status: 500 });
     }
   } catch (error) {
-    console.error('[MCP Direct API] Unhandled error:', error);
     return NextResponse.json({
       error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });

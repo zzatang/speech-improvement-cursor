@@ -22,9 +22,7 @@ export default function TestConnectionPage() {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-        // Log redacted values
-        console.log("URL:", url ? url.substring(0, 15) + "..." : "undefined");
-        console.log("Key:", key ? key.substring(0, 5) + "..." : "undefined");
+        
 
         if (!url || !key) {
           throw new Error("Missing Supabase URL or key");
@@ -35,16 +33,10 @@ export default function TestConnectionPage() {
           .from("user_profiles")
           .select('*', { count: 'exact', head: true });
 
-        if (error) {
-          console.error("Supabase error:", error);
-          throw new Error(error.message || "Unknown database error");
-        }
+                if (error) {          throw new Error(error.message || "Unknown database error");        }
 
         setResult(data);
-      } catch (e) {
-        console.error("Connection test failed:", e);
-        setError(e instanceof Error ? e.message : JSON.stringify(e, null, 2));
-      } finally {
+            } catch (e) {        setError(e instanceof Error ? e.message : JSON.stringify(e, null, 2));      } finally {
         setLoading(false);
       }
     }
@@ -72,16 +64,10 @@ export default function TestConnectionPage() {
         .from("user_profiles")
         .select('*', { count: 'exact', head: true });
 
-      if (error) {
-        console.error("Manual test error:", error);
-        throw new Error(error.message || "Unknown database error");
-      }
+            if (error) {        throw new Error(error.message || "Unknown database error");      }
 
       setManualResult(data);
-    } catch (e) {
-      console.error("Manual connection test failed:", e);
-      setManualError(e instanceof Error ? e.message : JSON.stringify(e, null, 2));
-    } finally {
+        } catch (e) {      setManualError(e instanceof Error ? e.message : JSON.stringify(e, null, 2));    } finally {
       setManualLoading(false);
     }
   }

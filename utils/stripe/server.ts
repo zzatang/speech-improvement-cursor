@@ -1,56 +1,51 @@
 'use server';
 
+import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { stripe } from '@/utils/stripe/config';
-import { createClerkSupabaseClientSsr } from '@/utils/supabase/server';
+import { createClient } from '@/utils/supabase/server';
 import { createOrRetrieveCustomer, supabaseAdmin } from '@/utils/supabase/admin';
 import {
     getURL,
     getErrorRedirect,
     calculateTrialEndUnixTimestamp
 } from '@/utils/helpers';
-import { Tables } from '@/types/database.types';
+import { getStatusRedirect } from '@/utils/helpers';
 import { auth, currentUser } from '@clerk/nextjs/server';
+import { Tables } from '@/types/database.types';
 
 type Price = Tables<'prices'>;
+type Product = Tables<'products'>;
+
+type CheckoutResponse = {
+    errorRedirect?: string;
+    sessionId?: string;
+};
 
 export async function checkoutWithStripe(
     price: Price,
-    redirectPath: string = '/',
-    referralId?: string,
-    referral?: string
-) {
+    redirectPath: string = '/account'
+): Promise<CheckoutResponse> {
     try {
-        // Get the user from Supabase auth
-        const user = await currentUser()
-
-        if (referralId) {
-            console.log("checkout with referral id:", referralId)
-        }
+        // Get the user from Clerk
+        const user = await currentUser();
 
         if (!user) {
             throw new Error('Could not get user session.');
         }
 
-        // Retrieve or create the customer in Stripe
+        // Get or create the customer in Stripe
         let customer: string;
         try {
             customer = await createOrRetrieveCustomer({
                 uuid: user.id || '',
-                email: user?.primaryEmailAddress?.emailAddress || '',
-                referral: referralId
+                email: user.emailAddresses[0]?.emailAddress || '',
             });
         } catch (err) {
             console.error(err);
             throw new Error('Unable to access customer record.');
         }
-
-        const referralMetadata = referral || referralId ? {
-            metadata: {
-                referral: referral || null,
-                referral_id: referralId || null
-            }
-        } : {}
 
         let params: Stripe.Checkout.SessionCreateParams = {
             allow_promotion_codes: true,
@@ -66,18 +61,19 @@ export async function checkoutWithStripe(
                 }
             ],
             cancel_url: getURL(),
-            success_url: getURL(redirectPath),
-            client_reference_id: referralId,
-            ...referralMetadata
+            success_url: getURL('/account/billing')
         };
 
+        console.log(
+            'Trial end:',
+            calculateTrialEndUnixTimestamp(price.trial_period_days)
+        );
         if (price.type === 'recurring') {
             params = {
                 ...params,
                 mode: 'subscription',
                 subscription_data: {
-                    trial_end: calculateTrialEndUnixTimestamp(price.trial_period_days),
-                    ...referralMetadata
+                    trial_end: calculateTrialEndUnixTimestamp(price.trial_period_days) || undefined
                 }
             };
         } else if (price.type === 'one_time') {
@@ -88,7 +84,7 @@ export async function checkoutWithStripe(
         }
 
         // Create a checkout session in Stripe
-        let session: Stripe.Checkout.Session
+        let session;
         try {
             session = await stripe.checkout.sessions.create(params);
         } catch (err) {
@@ -96,9 +92,9 @@ export async function checkoutWithStripe(
             throw new Error('Unable to create checkout session.');
         }
 
-        // Instead of returning a Response, just return the data or error.
+        // Instead of returning a Response, return the data or error.
         if (session) {
-            return session
+            return { sessionId: session.id };
         } else {
             throw new Error('Unable to create checkout session.');
         }
@@ -125,16 +121,9 @@ export async function checkoutWithStripe(
 
 export async function createStripePortal(currentPath: string) {
     try {
-        const supabase = await createClerkSupabaseClientSsr();
-        const {
-            error,
-            data: { user }
-        } = await supabase.auth.getUser();
+        const user = await currentUser();
 
         if (!user) {
-            if (error) {
-                console.error(error);
-            }
             throw new Error('Could not get user session.');
         }
 
@@ -142,10 +131,9 @@ export async function createStripePortal(currentPath: string) {
         try {
             customer = await createOrRetrieveCustomer({
                 uuid: user.id || '',
-                email: user.email || ''
+                email: user.emailAddresses[0]?.emailAddress || ''
             });
         } catch (err) {
-            console.error(err);
             throw new Error('Unable to access customer record.');
         }
 
@@ -163,12 +151,10 @@ export async function createStripePortal(currentPath: string) {
             }
             return url;
         } catch (err) {
-            console.error(err);
             throw new Error('Could not create billing portal');
         }
     } catch (error) {
         if (error instanceof Error) {
-            console.error(error);
             return getErrorRedirect(
                 currentPath,
                 error.message,
@@ -183,7 +169,6 @@ export async function createStripePortal(currentPath: string) {
         }
     }
 }
-
 
 export async function createBillingPortalSession() {
     try {
@@ -208,7 +193,6 @@ export async function createBillingPortalSession() {
         // Return the session URL
         return session.url;
     } catch (error) {
-        console.error('Error creating billing portal session:', error);
         return {
             error: "Error creating billing portal session"
         }

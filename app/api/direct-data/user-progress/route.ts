@@ -13,21 +13,18 @@ export async function GET(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
     if (authError || !user) {
-      console.log('[Direct Data API] Authentication failed:', authError);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     const { searchParams } = new URL(request.url);
     const targetUserId = searchParams.get('userId') || user.id;
     
-    console.log(`[Direct Data API] Fetching progress for user ${targetUserId}`);
     
     try {
       // Use the MCP Supabase query to fetch all records for the user
       const { mcp_supabase_query } = await import('@/lib/mcp-helpers');
       const result = await mcp_supabase_query(`SELECT * FROM user_progress WHERE user_id = '${targetUserId}' ORDER BY completed_at DESC`);
       const records = result || [];
-      console.log(`[Direct Data API] Provided all ${records.length} records for user ${targetUserId}`);
       return NextResponse.json({
         success: true,
         userId: targetUserId,
@@ -36,7 +33,6 @@ export async function GET(request: Request) {
         method: 'mcp_supabase_query'
       });
     } catch (fetchError) {
-      console.error('[Direct Data API] Error:', fetchError);
       return NextResponse.json({ 
         success: false, 
         error: 'Failed to fetch data', 
@@ -44,7 +40,6 @@ export async function GET(request: Request) {
       }, { status: 500 });
     }
   } catch (error) {
-    console.error('[Direct Data API] Unhandled error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -70,7 +65,6 @@ async function getSampleUserProgress(userId: string) {
       return result.data;
     }
   } catch (error) {
-    console.error('[Sample Data] Failed to get data via API:', error);
   }
   
   // If all else fails, return sample records with the correct user ID

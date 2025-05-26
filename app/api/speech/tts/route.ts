@@ -1,6 +1,7 @@
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { NextResponse, NextRequest } from 'next/server';
-import { synthesizeSpeech } from '@/lib/google/text-to-speech';
+import { ApiErrorHandler } from '@/lib/api/error-handler';
+import type { TTSRequest, TTSVoicesResponse, ApiError } from '@/types/api';
 
 // TTS configuration options
 interface TTSOptions {
@@ -19,7 +20,6 @@ function createTTSClient() {
   const credentials = process.env.GOOGLE_CLOUD_CREDENTIALS;
   
   if (!credentials) {
-    console.warn('Missing Google Cloud credentials. Using fallback mock TTS client.');
     return createMockTTSClient();
   }
   
@@ -30,8 +30,6 @@ function createTTSClient() {
       projectId: process.env.GOOGLE_CLOUD_PROJECT_ID 
     });
   } catch (error) {
-    console.error('Error creating Google Cloud TTS client:', error);
-    console.warn('Falling back to mock TTS client due to credentials error');
     return createMockTTSClient();
   }
 }
@@ -57,16 +55,13 @@ function createMockTTSClient() {
  * Handles POST requests to synthesize speech
  * Expected body format: { text: string, voiceName?: string, languageCode?: string, speakingRate?: number }
  */
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse<Buffer | ApiError>> {
   try {
     // Get request data
-    const body = await request.json() as TTSOptions;
+    const body = await request.json() as TTSRequest;
     
     if (!body.text) {
-      return new NextResponse(
-        JSON.stringify({ error: 'Text is required' }),
-        { status: 400 }
-      );
+      return ApiErrorHandler.createValidationError('Text is required');
     }
 
     try {
@@ -97,36 +92,21 @@ export async function POST(request: Request) {
         },
       });
     } catch (credentialError) {
-      console.error('Error with Google credentials:', credentialError);
-      return new NextResponse(
-        JSON.stringify({ 
-          error: 'Invalid Google Cloud credentials',
-          details: credentialError instanceof Error ? credentialError.message : 'Unknown error'
-        }),
-        { status: 500 }
+      return ApiErrorHandler.createErrorResponse(
+        'Invalid Google Cloud credentials',
+        credentialError instanceof Error ? credentialError.message : 'Unknown error',
+        500
       );
     }
   } catch (error) {
-    console.error('TTS API Error:', error);
-    return new NextResponse(
-      JSON.stringify({ 
-        error: 'Failed to generate speech',
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      }),
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    return ApiErrorHandler.handleUnknownError(error);
   }
 }
 
 /**
  * Handles GET requests to get available voices
  */
-export async function GET(request: Request) {
+export async function GET(): Promise<NextResponse<TTSVoicesResponse | ApiError>> {
   try {
     // Return a simplified response for now
     return NextResponse.json({ 
@@ -146,13 +126,6 @@ export async function GET(request: Request) {
       ] 
     });
   } catch (error) {
-    console.error('TTS List Voices API Error:', error);
-    return new NextResponse(
-      JSON.stringify({ 
-        error: 'Failed to list voices',
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      }),
-      { status: 500 }
-    );
+    return ApiErrorHandler.handleUnknownError(error);
   }
 } 

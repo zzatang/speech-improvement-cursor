@@ -11,11 +11,9 @@ const createServiceRoleClient = () => {
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error('Missing environment variables for service role client');
     throw new Error('Missing Supabase environment variables for service role');
   }
   
-  console.log('Creating service role client with URL:', supabaseUrl);
   return createClient(supabaseUrl, supabaseServiceKey);
 };
 
@@ -36,7 +34,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Missing table parameter' }, { status: 400 });
     }
     
-    console.log(`[Admin API] Bypassing RLS for table ${table}, user ${targetUserId}`);
     
     // Create a service role client that can bypass RLS
     const serviceClient = createServiceRoleClient();
@@ -52,14 +49,12 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     
     if (error) {
-      console.error(`[Admin API] Error querying ${table}:`, error);
       return NextResponse.json({ 
         success: false, 
         error: error.message 
       }, { status: 500 });
     }
     
-    console.log(`[Admin API] Successfully retrieved ${data?.length || 0} records from ${table}`);
     
     return NextResponse.json({
       success: true,
@@ -70,7 +65,6 @@ export async function GET(request: Request) {
     });
     
   } catch (error) {
-    console.error('[Admin API] Unhandled error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

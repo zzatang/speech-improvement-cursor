@@ -14,7 +14,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    console.log(`[init-db] Initializing database for user ${userId}`);
     
     // 1. Create or ensure user profile exists
     const { data: profileData, error: profileError } = await supabase
@@ -35,9 +34,7 @@ export async function GET(request: Request) {
       .maybeSingle();
     
     if (profileError) {
-      console.error(`[init-db] Error creating profile: ${profileError.message}`);
     } else {
-      console.log(`[init-db] User profile created or verified`);
     }
     
     // 2. Create sample user progress data
@@ -100,9 +97,7 @@ export async function GET(request: Request) {
       });
       
       if (error) {
-        console.error(`[init-db] Error adding exercise ${exercise.id}: ${error.message}`);
       } else {
-        console.log(`[init-db] Added exercise ${exercise.id}`);
       }
     }
     
@@ -113,25 +108,20 @@ export async function GET(request: Request) {
       .eq('user_id', userId);
     
     if (verifyError) {
-      console.error(`[init-db] Error verifying data: ${verifyError.message}`);
     } else {
-      console.log(`[init-db] Verified ${verifyData?.length || 0} progress records`);
     }
     
     // 4. Read existing records if we couldn't add new ones
     let existingRecords = [];
     if (!verifyData || verifyData.length === 0) {
-      console.log("[init-db] No records were verified, reading all records without filtering");
       
       const { data: allRecords, error: allError } = await supabase
         .from('user_progress')
         .select('*');
         
       if (allError) {
-        console.error(`[init-db] Error reading all records: ${allError.message}`);
       } else {
         existingRecords = allRecords || [];
-        console.log(`[init-db] Found ${existingRecords.length} total records in database`);
       }
     }
     
@@ -146,7 +136,6 @@ export async function GET(request: Request) {
     });
     
   } catch (error) {
-    console.error('[init-db] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error occurred' },
       { status: 500 }
